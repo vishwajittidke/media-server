@@ -8,6 +8,9 @@ interface FileItem {
   stored_name: string;
   mime_type: string;
   created_at: string;
+  storage_path?: string;
+  thumbnail_url?: string;
+  preview_url?: string;
 }
 
 interface GalleryProps {
