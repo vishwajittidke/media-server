@@ -949,9 +949,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
 
       {/* Floating Bulk Action Bar */}
       {isSelectMode && selectedFileIds.size > 0 && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 glass-panel p-4 rounded-full flex items-center gap-4 animate-fade-in-up shadow-2xl border border-white/20">
-          <span className="font-bold text-white/90 pl-2 whitespace-nowrap">{selectedFileIds.size} Selected</span>
-          <button onClick={() => setMovingFileId('BULK')} className="premium-btn !bg-blue-500/80 hover:!bg-blue-500 !text-white shadow-lg whitespace-nowrap">
+        <div className="fixed bottom-6 left-4 right-4 sm:bottom-10 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 glass-panel p-3 sm:p-4 rounded-2xl sm:rounded-full flex items-center justify-between sm:justify-start gap-4 animate-fade-in-up shadow-2xl border border-white/20">
+          <span className="font-bold text-white/90 pl-2 whitespace-nowrap text-sm sm:text-base">{selectedFileIds.size} Selected</span>
+          <button onClick={() => setMovingFileId('BULK')} className="premium-btn !py-2 !px-4 sm:!py-2.5 sm:!px-6 !bg-blue-500/80 hover:!bg-blue-500 !text-white shadow-lg whitespace-nowrap text-sm sm:text-base">
             Move To Album
           </button>
         </div>
