@@ -13,6 +13,12 @@ interface FileItem {
   preview_url?: string;
 }
 
+interface FolderItem {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
 interface GalleryProps {
   token: string;
   onLogout: () => void;
@@ -20,6 +26,11 @@ interface GalleryProps {
 
 const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'photos' | 'albums'>('photos');
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -28,8 +39,13 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchFiles();
+    fetchFiles(currentFolderId);
+    if (activeTab === 'albums' && currentFolderId === null) {
+      fetchFolders();
+    }
+  }, [currentFolderId, activeTab]);
 
+  useEffect(() => {
     let ws: WebSocket;
     let reconnectTimer: number | ReturnType<typeof setTimeout>;
 
@@ -40,13 +56,13 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "FILE_UPLOADED") {
-          // Verify it's not already in the state before prepending
-          setFiles(prev => prev.some(f => f.id === data.file.id) ? prev : [data.file, ...prev]);
+          // In a more complex app, we'd check if the uploaded file belongs to currentFolderId.
+          // For now, we'll just re-fetch to be safe if a file is uploaded.
+          fetchFiles(currentFolderId);
         }
       };
 
       ws.onclose = () => {
-        // Reconnect after 3 seconds if connection drops
         reconnectTimer = setTimeout(connectWs, 3000);
       };
     };
@@ -56,16 +72,21 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     return () => {
       clearTimeout(reconnectTimer);
       if (ws) {
-        ws.onclose = null; // Prevent reconnect loop on unmount
+        ws.onclose = null;
         ws.close();
       }
     };
-  }, [token]);
+  }, [token, currentFolderId]);
 
-  const fetchFiles = async () => {
+  const fetchFiles = async (folderId: string | null) => {
     try {
+      setInitialLoading(true);
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${apiUrl}/files/`, {
+      let url = `${apiUrl}/files/`;
+      if (folderId) {
+        url += `?folder_id=${folderId}`;
+      }
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -80,6 +101,23 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       console.error("Failed to fetch files", err);
     } finally {
       setInitialLoading(false);
+    }
+  };
+
+  const fetchFolders = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/folders/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFolders(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch folders", err);
     }
   };
 
@@ -115,6 +153,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       const file = fileList[i];
       const formData = new FormData();
       formData.append("files", file);
+      if (currentFolderId) {
+        formData.append("folder_id", currentFolderId);
+      }
 
       await new Promise<void>((resolve) => {
         const xhr = new XMLHttpRequest();
@@ -151,9 +192,52 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     }
 
     // After all files are uploaded (or failed), fetch the final list
-    await fetchFiles();
+    await fetchFiles(currentFolderId);
     setUploading(false);
     setUploadProgress(null);
+  };
+
+  const handleCreateFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFolderName.trim()) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/folders/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: newFolderName.trim() })
+      });
+      if (response.ok) {
+        setNewFolderName('');
+        setShowCreateModal(false);
+        fetchFolders();
+      }
+    } catch (err) {
+      console.error("Failed to create folder", err);
+    }
+  };
+
+  const handleDeleteFolder = async (e: React.MouseEvent, folderId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm("Delete this album? Photos inside will be moved to 'All Photos'.")) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/folders/${folderId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setFolders(prev => prev.filter(f => f.id !== folderId));
+      }
+    } catch (err) {
+      console.error("Failed to delete folder", err);
+    }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,12 +391,47 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             </button>
             <button 
               onClick={onLogout} 
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap"
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
             >
               Log Out
             </button>
           </div>
         </header>
+
+        {/* Tabs Navigation */}
+        {!currentFolderId && (
+          <div className="flex justify-center mb-8 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
+            <div className="bg-white/10 backdrop-blur-xl p-1 rounded-full flex space-x-1 border border-white/20">
+              <button 
+                onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); }}
+                className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activeTab === 'photos' ? 'bg-white text-slate-900 shadow-md scale-105' : 'text-white/70 hover:text-white'}`}
+              >
+                All Photos
+              </button>
+              <button 
+                onClick={() => { setActiveTab('albums'); setCurrentFolderId(null); }}
+                className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activeTab === 'albums' ? 'bg-white text-slate-900 shadow-md scale-105' : 'text-white/70 hover:text-white'}`}
+              >
+                Albums
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Folder Header */}
+        {currentFolderId && (
+          <div className="flex items-center space-x-4 mb-6 animate-fade-in-up">
+            <button 
+              onClick={() => setCurrentFolderId(null)}
+              className="bg-white/20 hover:bg-white/30 p-2 rounded-full backdrop-blur-md transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h2 className="text-2xl font-bold">
+              {folders.find(f => f.id === currentFolderId)?.name || 'Album'}
+            </h2>
+          </div>
+        )}
 
         {/* Progress Bar */}
         {uploadProgress !== null && (
@@ -326,120 +445,193 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
           </div>
         )}
 
-        {/* Grid */}
-        <PhotoSwipeGallery>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+        {/* Folders Grid */}
+        {activeTab === 'albums' && !currentFolderId && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 animate-fade-in-up">
+            <button 
+              onClick={() => setShowCreateModal(true)}
+              className="aspect-square glass-panel rounded-[28px] border-2 border-dashed border-white/30 flex flex-col items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+              </div>
+              <span className="font-semibold">New Album</span>
+            </button>
             
-            {initialLoading && Array.from({ length: 12 }).map((_, i) => (
+            {folders.map((folder, idx) => (
               <div 
-                key={`skeleton-${i}`} 
-                className="aspect-square glass-panel rounded-[28px] relative overflow-hidden animate-pulse bg-white/5"
-                style={{ animationDelay: `${(i % 10) * 0.1}s` }}
+                key={folder.id} 
+                onClick={() => setCurrentFolderId(folder.id)}
+                className="aspect-square glass-panel rounded-[28px] flex flex-col relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+                style={{ animationDelay: `${(idx % 10) * 0.05}s` }}
               >
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/40 z-10"></div>
+                
+                {/* Folder Icon Decoration */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity z-0">
+                  <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+                </div>
+                
+                <button 
+                  onClick={(e) => handleDeleteFolder(e, folder.id)}
+                  className="absolute top-3 right-3 z-20 bg-red-500/20 text-red-300 p-2 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all backdrop-blur-md"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+                
+                <div className="mt-auto p-4 z-20 w-full flex justify-between items-end">
+                  <span className="font-bold text-lg truncate w-full shadow-black drop-shadow-md">{folder.name}</span>
+                </div>
               </div>
             ))}
-
-            {!initialLoading && files.length === 0 && (
-              <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-500">
-                <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p className="text-lg">No files yet. Upload some photos!</p>
-              </div>
-            )}
-            
-            {!initialLoading && files.map((file, idx) => {
-              const isImage = file.mime_type && file.mime_type.startsWith('image/');
-              // Use direct stored URLs since we're using Cloudinary, or fallback to local
-              const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-              const baseUrl = apiUrl.replace('/api/v1', '');
-              
-              const fileUrl = (file.storage_path || '').startsWith('http') 
-                ? (file.storage_path || '')
-                : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;
-                
-              // If Cloudinary succeeded, it has a preview_url. If it failed to local, 
-              // Pillow might have failed to generate the preview, so we use fileUrl as a bulletproof fallback.
-              const previewUrl = isImage ? (file.preview_url || fileUrl) : fileUrl;
-              const thumbnailUrl = isImage ? (file.thumbnail_url || fileUrl) : fileUrl;
-              const dim = dimensions[file.id] || { width: 1024, height: 768 }; // Temporary fallback until loaded
-              
-              return (
-                <div 
-                  key={file.id} 
-                  className="group aspect-square glass-panel rounded-[28px] flex flex-col items-center justify-center relative transition-all duration-500 hover:scale-[1.02] cursor-pointer overflow-hidden animate-fade-in-up"
-                  style={{ animationDelay: `${(idx % 10) * 0.05}s` }}
-                >
-                  {isImage ? (
-                    <Item
-                      original={previewUrl}
-                      thumbnail={thumbnailUrl}
-                      width={dim.width > 2048 ? 2048 : dim.width}
-                      height={dim.width > 2048 ? Math.round((dim.height / dim.width) * 2048) : dim.height}
-                    >
-                      {({ ref, open }) => (
-                        <img 
-                          ref={ref as any} 
-                          onClick={open} 
-                          onLoad={(e) => handleImageLoad(e, file.id)}
-                          src={thumbnailUrl} 
-                          alt={file.original_name} 
-                          className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                          loading="lazy"
-                          onError={(e) => {
-                            // Fallback to original if thumbnail doesn't exist (e.g. older uploads)
-                            (e.target as HTMLImageElement).src = fileUrl;
-                          }}
-                        />
-                      )}
-                    </Item>
-                  ) : (
-                    <>
-                      <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-100 transition-opacity" />
-                      <div className="relative z-10 flex flex-col items-center p-4 w-full h-full justify-between">
-                        <div className="flex-1 flex items-center justify-center">
-                          <span className="text-5xl filter drop-shadow-md group-hover:scale-110 transition-transform duration-500">
-                            {file.original_name.endsWith('.pdf') ? '📄' : '📁'}
-                          </span>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  
-                  {/* iPhone 17 Themed Delete Button */}
-                  <button 
-                    onClick={(e) => handleDelete(e, file.id)}
-                    className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"
-                    title="Delete Photo"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-
-                  {/* Download Button */}
-                  <button 
-                    onClick={(e) => handleDownload(e, file.id, file.original_name)}
-                    className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
-                    title="Download Original"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                  </button>
-                  
-                  <div className="absolute bottom-3 left-3 right-3 bg-black/40 backdrop-blur-xl p-2 rounded-2xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 z-20 pointer-events-none border border-white/10">
-                    <p className="text-xs truncate w-full text-center font-medium text-white/90" title={file.original_name}>
-                      {file.original_name}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
           </div>
-        </PhotoSwipeGallery>
+        )}
+
+        {/* Files Grid */}
+        {(activeTab === 'photos' || currentFolderId) && (
+          <PhotoSwipeGallery>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+              
+              {initialLoading && Array.from({ length: 12 }).map((_, i) => (
+                <div 
+                  key={`skeleton-${i}`} 
+                  className="aspect-square glass-panel rounded-[28px] relative overflow-hidden animate-pulse bg-white/5"
+                  style={{ animationDelay: `${(i % 10) * 0.1}s` }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                </div>
+              ))}
+
+              {!initialLoading && files.length === 0 && (
+                <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-500">
+                  <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-lg">No files yet. Upload some photos!</p>
+                </div>
+              )}
+              
+              {!initialLoading && files.map((file, idx) => {
+                const isImage = file.mime_type && file.mime_type.startsWith('image/');
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+                const baseUrl = apiUrl.replace('/api/v1', '');
+                
+                const fileUrl = (file.storage_path || '').startsWith('http') 
+                  ? (file.storage_path || '')
+                  : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;
+                  
+                const previewUrl = isImage ? (file.preview_url || fileUrl) : fileUrl;
+                const thumbnailUrl = isImage ? (file.thumbnail_url || fileUrl) : fileUrl;
+                const dim = dimensions[file.id] || { width: 1024, height: 768 }; 
+                
+                return (
+                  <div 
+                    key={file.id} 
+                    className="group aspect-square glass-panel rounded-[28px] flex flex-col items-center justify-center relative transition-all duration-500 hover:scale-[1.02] cursor-pointer overflow-hidden animate-fade-in-up"
+                    style={{ animationDelay: `${(idx % 10) * 0.05}s` }}
+                  >
+                    {isImage ? (
+                      <Item
+                        original={previewUrl}
+                        thumbnail={thumbnailUrl}
+                        width={dim.width > 2048 ? 2048 : dim.width}
+                        height={dim.width > 2048 ? Math.round((dim.height / dim.width) * 2048) : dim.height}
+                      >
+                        {({ ref, open }) => (
+                          <img 
+                            ref={ref as any} 
+                            onClick={open} 
+                            onLoad={(e) => handleImageLoad(e, file.id)}
+                            src={thumbnailUrl} 
+                            alt={file.original_name} 
+                            className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = fileUrl;
+                            }}
+                          />
+                        )}
+                      </Item>
+                    ) : (
+                      <>
+                        <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative z-10 flex flex-col items-center p-4 w-full h-full justify-between">
+                          <div className="flex-1 flex items-center justify-center">
+                            <span className="text-5xl filter drop-shadow-md group-hover:scale-110 transition-transform duration-500">
+                              {file.original_name.endsWith('.pdf') ? '📄' : '📁'}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    
+                    <button 
+                      onClick={(e) => handleDelete(e, file.id)}
+                      className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"
+                      title="Delete Photo"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+  
+                    <button 
+                      onClick={(e) => handleDownload(e, file.id, file.original_name)}
+                      className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                      title="Download Original"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </button>
+                    
+                    <div className="absolute bottom-3 left-3 right-3 bg-black/40 backdrop-blur-xl p-2 rounded-2xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 z-20 pointer-events-none border border-white/10">
+                      <p className="text-xs truncate w-full text-center font-medium text-white/90" title={file.original_name}>
+                        {file.original_name}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </PhotoSwipeGallery>
+        )}
       </div>
+
+      {/* Create Folder Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
+            <h3 className="text-xl font-bold mb-4">Create New Album</h3>
+            <form onSubmit={handleCreateFolder}>
+              <input 
+                type="text" 
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                placeholder="e.g. Summer Vacation"
+                className="premium-input mb-6 w-full"
+                autoFocus
+              />
+              <div className="flex space-x-3">
+                <button 
+                  type="button" 
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={!newFolderName.trim()}
+                  className="flex-1 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"
+                >
+                  Create
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
