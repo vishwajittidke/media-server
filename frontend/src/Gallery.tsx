@@ -34,6 +34,10 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [movingFileId, setMovingFileId] = useState<string | null>(null);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ old: '', new: '' });
   const [uploading, setUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -158,18 +162,52 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     }
   };
 
+  const compressImage = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(file); return;
+      }
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          const MAX_WIDTH = 1920; const MAX_HEIGHT = 1920;
+          let width = img.width; let height = img.height;
+          if (width > height) {
+            if (width > MAX_WIDTH) { height = Math.round((height *= MAX_WIDTH / width)); width = MAX_WIDTH; }
+          } else {
+            if (height > MAX_HEIGHT) { width = Math.round((width *= MAX_HEIGHT / height)); height = MAX_HEIGHT; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+            } else { resolve(file); }
+          }, 'image/jpeg', 0.85);
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  };
+
   const uploadFiles = async (fileList: File[]) => {
     setUploading(true);
     setUploadProgress(0);
     
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+    let totalLoaded = 0;
     
-    let totalBytesLoaded = 0;
-    const totalBytesToUpload = fileList.reduce((acc, file) => acc + file.size, 0);
+    const compressedFiles = await Promise.all(fileList.map(f => compressImage(f)));
+    const totalSize = compressedFiles.reduce((acc, file) => acc + file.size, 0);
 
-    // Upload sequentially to avoid Payload Too Large errors (413)
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
+    for (let i = 0; i < compressedFiles.length; i++) {
+      const file = compressedFiles[i];
       const formData = new FormData();
       formData.append("files", file);
       if (currentFolderId) {
@@ -181,22 +219,20 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         xhr.open('POST', `${apiUrl}/files/`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         
-        // We only track the progress of the CURRENT file and add it to previous files' total
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
-            const currentTotalLoaded = totalBytesLoaded + event.loaded;
-            const percentComplete = Math.round((currentTotalLoaded / totalBytesToUpload) * 100);
+            const currentTotalLoaded = totalLoaded + event.loaded;
+            const percentComplete = Math.round((currentTotalLoaded / totalSize) * 100);
             setUploadProgress(Math.min(percentComplete, 100));
           }
         };
 
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            totalBytesLoaded += file.size; // Lock in the file's size upon completion
+            totalLoaded += file.size;
             resolve();
           } else {
             console.error(`Upload failed for ${file.name} with status`, xhr.status);
-            // We resolve instead of reject so one failed file doesn't stop the rest
             resolve(); 
           }
         };
@@ -210,7 +246,6 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       });
     }
 
-    // After all files are uploaded (or failed), fetch the final list
     setPage(0);
     await fetchFiles(currentFolderId, 0);
     setUploading(false);
@@ -267,23 +302,63 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const handleMoveFile = async (fileId: string, targetFolderId: string | null) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${apiUrl}/files/${fileId}/move`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ folder_id: targetFolderId })
-      });
-      if (response.ok) {
-        setFiles(prev => prev.filter(f => f.id !== fileId));
-        setMovingFileId(null);
+      
+      if (fileId === 'BULK') {
+        const response = await fetch(`${apiUrl}/files/bulk/move`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_ids: Array.from(selectedFileIds), folder_id: targetFolderId })
+        });
+        if (response.ok) {
+          setFiles(prev => prev.filter(f => !selectedFileIds.has(f.id)));
+          setMovingFileId(null);
+          setIsSelectMode(false);
+          setSelectedFileIds(new Set());
+        }
       } else {
-        alert("Failed to move file.");
+        const response = await fetch(`${apiUrl}/files/${fileId}/move`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder_id: targetFolderId })
+        });
+        if (response.ok) {
+          setFiles(prev => prev.filter(f => f.id !== fileId));
+          setMovingFileId(null);
+        } else {
+          alert("Failed to move file.");
+        }
       }
     } catch (err) {
       console.error("Failed to move file", err);
     }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/auth/change-password`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: passwordForm.old, new_password: passwordForm.new })
+      });
+      if (response.ok) {
+        alert("Password changed successfully!");
+        setShowPasswordModal(false);
+        setPasswordForm({ old: '', new: '' });
+      } else {
+        alert("Incorrect old password or failed to change.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleSelection = (fileId: string) => {
+    const newSet = new Set(selectedFileIds);
+    if (newSet.has(fileId)) newSet.delete(fileId);
+    else newSet.add(fileId);
+    setSelectedFileIds(newSet);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -373,7 +448,6 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     const target = e.target as HTMLImageElement;
     if (target.naturalWidth && target.naturalHeight) {
       setDimensions(prev => {
-        // Only update if it's not already set or differs, to prevent infinite loops
         if (prev[fileId]?.width === target.naturalWidth && prev[fileId]?.height === target.naturalHeight) {
           return prev;
         }
@@ -430,8 +504,20 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               />
             </label>
             <button 
+              onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
+            >
+              {isSelectMode ? 'Cancel' : 'Select'}
+            </button>
+            <button 
+              onClick={() => setShowPasswordModal(true)}
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
+            >
+              Security
+            </button>
+            <button 
               onClick={handleDeleteAccount} 
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-red-500/20 hover:!bg-red-500/40 text-red-200 border border-red-500/30 whitespace-nowrap"
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-red-500/20 hover:!bg-red-500/40 text-red-200 border border-red-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
             >
               Delete Account
             </button>
@@ -513,7 +599,6 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/40 z-10"></div>
                 
-                {/* Folder Icon Decoration */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity z-0">
                   <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
                 </div>
@@ -584,30 +669,42 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                         height={dim.width > 2048 ? Math.round((dim.height / dim.width) * 2048) : dim.height}
                       >
                         {({ ref, open }) => (
-                          <img 
-                            ref={ref as any} 
-                            onClick={open} 
-                            onLoad={(e) => handleImageLoad(e, file.id)}
-                            src={thumbnailUrl} 
-                            alt={file.original_name} 
-                            className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                            loading="lazy"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = fileUrl;
-                            }}
-                          />
+                          <div className="relative w-full h-full">
+                            <img 
+                              ref={ref as any} 
+                              onClick={isSelectMode ? (e) => { e.stopPropagation(); toggleSelection(file.id); } : open} 
+                              onLoad={(e) => handleImageLoad(e, file.id)}
+                              src={thumbnailUrl} 
+                              alt={file.original_name} 
+                              className={`absolute inset-0 w-full h-full object-cover transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'scale-90 rounded-2xl opacity-70' : 'opacity-90 group-hover:opacity-100'}`}
+                              loading="lazy"
+                              onError={(e) => { (e.target as HTMLImageElement).src = fileUrl; }}
+                            />
+                            {isSelectMode && (
+                              <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40">
+                                {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </Item>
                     ) : (
                       <>
-                        <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-100 transition-opacity" />
-                        <div className="relative z-10 flex flex-col items-center p-4 w-full h-full justify-between">
+                        <div className={`absolute inset-0 transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'bg-blue-500/20 scale-90 rounded-2xl' : 'bg-white/5 opacity-50 group-hover:opacity-100'}`} 
+                             onClick={isSelectMode ? () => toggleSelection(file.id) : undefined}
+                        />
+                        <div className="relative z-10 flex flex-col items-center p-4 w-full h-full justify-between pointer-events-none">
                           <div className="flex-1 flex items-center justify-center">
                             <span className="text-5xl filter drop-shadow-md group-hover:scale-110 transition-transform duration-500">
                               {file.original_name.endsWith('.pdf') ? '📄' : '📁'}
                             </span>
                           </div>
                         </div>
+                        {isSelectMode && (
+                          <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40 z-20 pointer-events-none">
+                            {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}
+                          </div>
+                        )}
                       </>
                     )}
                     
@@ -735,6 +832,46 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
+            <h3 className="text-xl font-bold mb-4 text-white">Change Password</h3>
+            <form onSubmit={handleChangePassword}>
+              <input 
+                type="password" 
+                value={passwordForm.old}
+                onChange={e => setPasswordForm({...passwordForm, old: e.target.value})}
+                placeholder="Current Password"
+                className="premium-input mb-4 w-full"
+                required
+              />
+              <input 
+                type="password" 
+                value={passwordForm.new}
+                onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}
+                placeholder="New Password"
+                className="premium-input mb-6 w-full"
+                required
+              />
+              <div className="flex space-x-3">
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="flex-1 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white">Cancel</button>
+                <button type="submit" disabled={!passwordForm.old || !passwordForm.new} className="flex-1 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bulk Action Bar */}
+      {isSelectMode && selectedFileIds.size > 0 && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 glass-panel p-4 rounded-full flex items-center gap-4 animate-fade-in-up shadow-2xl border border-white/20">
+          <span className="font-bold text-white/90 pl-2 whitespace-nowrap">{selectedFileIds.size} Selected</span>
+          <button onClick={() => setMovingFileId('BULK')} className="premium-btn !bg-blue-500/80 hover:!bg-blue-500 !text-white shadow-lg whitespace-nowrap">
+            Move To Album
+          </button>
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Media Server API"
     SECRET_KEY: str = "supersecretkeyyoushouldchangeinproduction"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200 # 30 days
     DATABASE_URL: str = "sqlite:///../database/photodb.sqlite"
     FRONTEND_URL: str = "http://localhost:5173"
     CLOUDINARY_URL: str = ""

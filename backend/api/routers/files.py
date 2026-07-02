@@ -275,3 +275,25 @@ def move_file(
     db_file.folder_id = request.folder_id
     db.commit()
     return {"status": "ok"}
+
+class BulkMoveRequest(BaseModel):
+    file_ids: list[str]
+    folder_id: str | None = None
+
+@router.put("/bulk/move")
+def bulk_move_files(
+    request: BulkMoveRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if request.folder_id:
+        from models import Folder
+        folder = db.query(Folder).filter(Folder.id == request.folder_id, Folder.owner_id == current_user.id).first()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Target folder not found")
+            
+    db.query(DBFile).filter(DBFile.id.in_(request.file_ids), DBFile.owner_id == current_user.id).update(
+        {DBFile.folder_id: request.folder_id}, synchronize_session=False
+    )
+    db.commit()
+    return {"status": "ok"}

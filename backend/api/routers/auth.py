@@ -53,6 +53,19 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+@router.put("/change-password")
+def change_password(request: ChangePasswordRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_password(request.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
+    
+    current_user.password_hash = get_password_hash(request.new_password)
+    db.commit()
+    return {"status": "success"}
+
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Fetch all user's files
