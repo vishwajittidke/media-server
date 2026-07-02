@@ -26,11 +26,14 @@ interface GalleryProps {
 
 const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [activeTab, setActiveTab] = useState<'photos' | 'albums'>('photos');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [movingFileId, setMovingFileId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -39,11 +42,21 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchFiles(currentFolderId);
+    setPage(0);
+    setHasMore(true);
+    fetchFiles(currentFolderId, 0);
     if (activeTab === 'albums' && currentFolderId === null) {
       fetchFolders();
     }
+    // Also fetch folders if we need them for the Move modal
+    if (folders.length === 0) fetchFolders();
   }, [currentFolderId, activeTab]);
+
+  useEffect(() => {
+    if (page > 0) {
+      fetchFiles(currentFolderId, page);
+    }
+  }, [page]);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -56,9 +69,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "FILE_UPLOADED") {
-          // In a more complex app, we'd check if the uploaded file belongs to currentFolderId.
-          // For now, we'll just re-fetch to be safe if a file is uploaded.
-          fetchFiles(currentFolderId);
+          setPage(0);
+          fetchFiles(currentFolderId, 0);
         }
       };
 
@@ -78,13 +90,13 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     };
   }, [token, currentFolderId]);
 
-  const fetchFiles = async (folderId: string | null) => {
+  const fetchFiles = async (folderId: string | null, pageNum: number) => {
     try {
-      setInitialLoading(true);
+      if (pageNum === 0) setInitialLoading(true);
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      let url = `${apiUrl}/files/`;
+      let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
       if (folderId) {
-        url += `?folder_id=${folderId}`;
+        url += `&folder_id=${folderId}`;
       }
       const response = await fetch(url, {
         headers: {
@@ -93,14 +105,21 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        setFiles(data);
+        if (data.length < 50) setHasMore(false);
+        else setHasMore(true);
+        
+        if (pageNum === 0) {
+          setFiles(data);
+        } else {
+          setFiles(prev => [...prev, ...data]);
+        }
       } else if (response.status === 401) {
         onLogout();
       }
     } catch (err) {
       console.error("Failed to fetch files", err);
     } finally {
-      setInitialLoading(false);
+      if (pageNum === 0) setInitialLoading(false);
     }
   };
 
@@ -192,7 +211,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     }
 
     // After all files are uploaded (or failed), fetch the final list
-    await fetchFiles(currentFolderId);
+    setPage(0);
+    await fetchFiles(currentFolderId, 0);
     setUploading(false);
     setUploadProgress(null);
   };
@@ -241,6 +261,28 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       }
     } catch (err) {
       console.error("Failed to delete folder", err);
+    }
+  };
+
+  const handleMoveFile = async (fileId: string, targetFolderId: string | null) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/files/${fileId}/move`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ folder_id: targetFolderId })
+      });
+      if (response.ok) {
+        setFiles(prev => prev.filter(f => f.id !== fileId));
+        setMovingFileId(null);
+      } else {
+        alert("Failed to move file.");
+      }
+    } catch (err) {
+      console.error("Failed to move file", err);
     }
   };
 
@@ -594,13 +636,72 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                         {file.original_name}
                       </p>
                     </div>
+
+                    {/* Move Button */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setMovingFileId(file.id); }}
+                      className="absolute top-3 right-24 bg-blue-500/10 dark:bg-black/30 backdrop-blur-xl text-blue-500 dark:text-blue-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-blue-500/30 hover:bg-blue-500 hover:text-white hover:border-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.2)] active:scale-90"
+                      title="Move to Album"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7l-2 2m2-2l2 2m4-4h.01M16 11h.01M16 15h.01M16 19h.01" />
+                      </svg>
+                    </button>
                   </div>
                 );
               })}
             </div>
+            
+            {!initialLoading && files.length > 0 && hasMore && (
+              <div className="w-full flex justify-center mt-10 pb-8">
+                <button 
+                  onClick={() => setPage(p => p + 1)}
+                  className="premium-btn !px-8 !py-3 font-semibold shadow-xl"
+                >
+                  Load More
+                </button>
+              </div>
+            )}
           </PhotoSwipeGallery>
         )}
       </div>
+
+      {/* Move File Modal */}
+      {movingFileId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
+            <h3 className="text-xl font-bold mb-4 text-white">Move Photo to Album</h3>
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+              {currentFolderId && (
+                <button
+                  onClick={() => handleMoveFile(movingFileId, null)}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white font-medium"
+                >
+                  📁 All Photos (Root)
+                </button>
+              )}
+              {folders.filter(f => f.id !== currentFolderId).map(folder => (
+                <button
+                  key={folder.id}
+                  onClick={() => handleMoveFile(movingFileId, folder.id)}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white font-medium"
+                >
+                  📁 {folder.name}
+                </button>
+              ))}
+              {folders.length === 0 && !currentFolderId && (
+                <p className="text-white/50 text-center py-4">No albums created yet.</p>
+              )}
+            </div>
+            <button 
+              onClick={() => setMovingFileId(null)}
+              className="w-full py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Create Folder Modal */}
       {showCreateModal && (

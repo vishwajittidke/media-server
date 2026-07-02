@@ -12,6 +12,7 @@ Image.MAX_IMAGE_PIXELS = None  # Disable decompression bomb limit for huge files
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+from pydantic import BaseModel
 
 from core.config import settings
 from models import User, File as DBFile, UploadStatusEnum, Folder
@@ -97,10 +98,10 @@ async def upload_files(
                 # Cloudinary automatic transformations
                 if mime_type.startswith("image/"):
                     preview_url = cloudinary.CloudinaryImage(upload_res["public_id"]).build_url(
-                        secure=True, width=2048, crop="limit"
+                        secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto"
                     )
                     thumbnail_url = cloudinary.CloudinaryImage(upload_res["public_id"]).build_url(
-                        secure=True, width=400, crop="limit"
+                        secure=True, width=400, crop="limit", fetch_format="webp", quality="auto"
                     )
             except Exception as e:
                 print(f"Cloudinary upload failed: {e}")
@@ -160,6 +161,8 @@ async def upload_files(
 @router.get("/")
 def list_files(
     folder_id: str = None,
+    skip: int = 0,
+    limit: int = 50,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -169,7 +172,7 @@ def list_files(
     else:
         query = query.filter(DBFile.folder_id == None)
         
-    files = query.order_by(DBFile.created_at.desc()).all()
+    files = query.order_by(DBFile.created_at.desc()).offset(skip).limit(limit).all()
     
     # Map dynamic URLs if stored on Cloudinary
     result = []
@@ -184,8 +187,8 @@ def list_files(
         if f.storage_path and f.storage_path.startswith("http"):
             # It's cloudinary
             public_id = f"media_server/{f.sha256}"
-            f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit")
-            f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit")
+            f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
+            f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
         result.append(f_dict)
         
     return result
@@ -248,3 +251,27 @@ def delete_file(
     db.commit()
     
     return None
+
+class MoveFileRequest(BaseModel):
+    folder_id: str | None = None
+
+@router.put("/{file_id}/move")
+def move_file(
+    file_id: str,
+    request: MoveFileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.owner_id == current_user.id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if request.folder_id:
+        from models import Folder
+        folder = db.query(Folder).filter(Folder.id == request.folder_id, Folder.owner_id == current_user.id).first()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Target folder not found")
+            
+    db_file.folder_id = request.folder_id
+    db.commit()
+    return {"status": "ok"}
