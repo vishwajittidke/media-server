@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Gallery as PhotoSwipeGallery, Item } from 'react-photoswipe-gallery';
 import 'photoswipe/dist/photoswipe.css';
+import imageCompression from 'browser-image-compression';
 
 interface FileItem {
   id: string;
@@ -65,9 +66,25 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     
     setUploading(true);
     const formData = new FormData();
-    Array.from(e.target.files).forEach(file => {
+    
+    // Compress images before uploading
+    for (let i = 0; i < e.target.files.length; i++) {
+      let file = e.target.files[i];
+      if (file.type.startsWith('image/')) {
+        try {
+          const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true
+          };
+          const compressedFile = await imageCompression(file, options);
+          file = new File([compressedFile], file.name, { type: file.type });
+        } catch (error) {
+          console.error("Compression error:", error);
+        }
+      }
       formData.append("files", file);
-    });
+    }
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -142,22 +159,22 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     <div className="min-h-screen mesh-bg text-white relative overflow-hidden font-sans">
       <div className="relative z-10 max-w-[1400px] mx-auto px-4 py-8">
         {/* Header */}
-        <header className="flex justify-between items-center mb-10 glass-panel p-3 px-6 rounded-full animate-fade-in-up">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <header className="flex flex-row justify-between items-center mb-6 sm:mb-10 glass-panel p-2 px-4 sm:p-3 sm:px-6 rounded-full animate-fade-in-up">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Gallery</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Gallery</h1>
           </div>
           
-          <div className="flex items-center space-x-4">
-            <label className="premium-btn cursor-pointer inline-flex items-center space-x-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <label className="premium-btn cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 !px-3 sm:!px-6 !py-1.5 sm:!py-2.5">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <span>{uploading ? 'Uploading...' : 'Upload'}</span>
+              <span className="text-sm sm:text-base whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>
               <input 
                 type="file" 
                 multiple 
@@ -169,7 +186,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             </label>
             <button 
               onClick={onLogout} 
-              className="premium-btn text-sm px-5 py-2 !bg-white/10 hover:!bg-white/20"
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap"
             >
               Log Out
             </button>
