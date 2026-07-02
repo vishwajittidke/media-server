@@ -549,8 +549,6 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
           </div>
         </header>
 
-        )}
-
         {/* Folder Header */}
         {currentFolderId && (
           <div className="flex items-center space-x-4 mb-6 animate-fade-in-up">
