@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile, Form, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -17,6 +17,7 @@ from core.config import settings
 from models import User, File as DBFile, UploadStatusEnum, Folder
 from api.deps import get_db, get_current_user
 from core.websocket import manager
+from core.limiter import limiter
 import json
 
 router = APIRouter()
@@ -29,7 +30,9 @@ def get_file_hash(filepath: str) -> str:
     return sha256_hash.hexdigest()
 
 @router.post("/", status_code=201)
+@limiter.limit("20/minute")
 async def upload_files(
+    request: Request,
     files: List[UploadFile] = FastAPIFile(...),
     folder_id: str = Form(None),
     current_user: User = Depends(get_current_user),

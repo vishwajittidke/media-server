@@ -248,6 +248,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                           src={thumbnailUrl} 
                           alt={file.original_name} 
                           className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                          loading="lazy"
                           onError={(e) => {
                             // Fallback to original if thumbnail doesn't exist (e.g. older uploads)
                             (e.target as HTMLImageElement).src = fileUrl;
