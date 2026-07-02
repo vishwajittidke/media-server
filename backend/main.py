@@ -16,6 +16,16 @@ from core.config import settings
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# Auto-migration
+from sqlalchemy import text
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE files ADD COLUMN is_favorite BOOLEAN DEFAULT 0;"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN date_taken DATETIME;"))
+        conn.commit()
+except Exception:
+    pass
+
 app = FastAPI(title=settings.PROJECT_NAME)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
