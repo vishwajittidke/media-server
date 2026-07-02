@@ -122,6 +122,30 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent, fileId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this photo?")) return;
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/files/${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        setFiles(prev => prev.filter(f => f.id !== fileId));
+      } else {
+        alert("Failed to delete file.");
+      }
+    } catch (err) {
+      console.error("Delete failed", err);
+    }
+  };
+
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>, fileId: string) => {
     const target = e.target as HTMLImageElement;
     if (target.naturalWidth && target.naturalHeight) {
@@ -244,14 +268,25 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                     </>
                   )}
                   
+                  {/* iPhone 17 Themed Delete Button */}
+                  <button 
+                    onClick={(e) => handleDelete(e, file.id)}
+                    className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"
+                    title="Delete Photo"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+
                   {/* Download Button */}
                   <button 
                     onClick={(e) => handleDownload(e, file.id, file.original_name)}
-                    className="absolute top-3 right-3 bg-black/30 backdrop-blur-md text-white p-2.5 rounded-full opacity-100 hover:bg-black/50 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/20 shadow-sm"
+                    className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
                     title="Download Original"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                   </button>
                   

@@ -207,3 +207,41 @@ def download_file(
         filename=db_file.original_name,
         media_type=db_file.mime_type
     )
+
+@router.delete("/{file_id}", status_code=204)
+def delete_file(
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.owner_id == current_user.id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    # Delete from Cloudinary if applicable
+    if db_file.storage_path.startswith("http"):
+        try:
+            cloudinary.uploader.destroy(f"media_server/{db_file.sha256}")
+        except Exception as e:
+            print(f"Failed to delete from Cloudinary: {e}")
+    else:
+        # Delete local files
+        try:
+            if os.path.exists(db_file.storage_path):
+                os.remove(db_file.storage_path)
+            
+            thumb_path = os.path.join(settings.THUMBNAILS_DIR, db_file.stored_name)
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+                
+            preview_path = os.path.join(settings.PREVIEWS_DIR, db_file.stored_name)
+            if os.path.exists(preview_path):
+                os.remove(preview_path)
+        except Exception as e:
+            print(f"Failed to delete local files: {e}")
+
+    # Delete from DB
+    db.delete(db_file)
+    db.commit()
+    
+    return None
