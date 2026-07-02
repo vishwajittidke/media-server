@@ -11,3 +11,4 @@ python-jose[cryptography]
 passlib[bcrypt]
 cloudinary
 Pillow
+bcrypt==3.2.0
