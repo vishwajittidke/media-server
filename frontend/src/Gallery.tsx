@@ -218,13 +218,14 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
               const baseUrl = apiUrl.replace('/api/v1', '');
               
-              const isLocal = !file.storage_path?.startsWith('http');
-              const fileUrl = isLocal 
-                ? `${baseUrl}/uploads/${file.stored_name}` 
-                : (file.storage_path || '');
-              
-              const thumbnailUrl = isImage ? (file.thumbnail_url || (isLocal ? `${baseUrl}/thumbnails/${file.stored_name}` : fileUrl)) : fileUrl;
-              const previewUrl = isImage ? (file.preview_url || (isLocal ? `${baseUrl}/previews/${file.stored_name}` : fileUrl)) : fileUrl;
+              const fileUrl = file.storage_path.startsWith('http') 
+                ? file.storage_path 
+                : `${baseUrl}${file.storage_path.replace('..', '')}`;
+                
+              // If Cloudinary succeeded, it has a preview_url. If it failed to local, 
+              // Pillow might have failed to generate the preview, so we use fileUrl as a bulletproof fallback.
+              const previewUrl = isImage ? (file.preview_url || fileUrl) : fileUrl;
+              const thumbnailUrl = isImage ? (file.thumbnail_url || fileUrl) : fileUrl;
               const dim = dimensions[file.id] || { width: 1024, height: 768 }; // Temporary fallback until loaded
               
               return (
