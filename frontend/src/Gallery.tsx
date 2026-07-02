@@ -31,7 +31,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     fetchFiles();
 
     let ws: WebSocket;
-    let reconnectTimer: NodeJS.Timeout;
+    let reconnectTimer: number | ReturnType<typeof setTimeout>;
 
     const connectWs = () => {
       const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);
@@ -116,7 +116,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       const formData = new FormData();
       formData.append("files", file);
 
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${apiUrl}/files/`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
