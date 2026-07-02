@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Gallery as PhotoSwipeGallery, Item } from 'react-photoswipe-gallery';
 import 'photoswipe/dist/photoswipe.css';
-import imageCompression from 'browser-image-compression';
 
 interface FileItem {
   id: string;
@@ -66,25 +65,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     
     setUploading(true);
     const formData = new FormData();
-    
-    // Compress images before uploading
-    for (let i = 0; i < e.target.files.length; i++) {
-      let file = e.target.files[i];
-      if (file.type.startsWith('image/')) {
-        try {
-          const options = {
-            maxSizeMB: 1,
-            maxWidthOrHeight: 1920,
-            useWebWorker: true
-          };
-          const compressedFile = await imageCompression(file, options);
-          file = new File([compressedFile], file.name, { type: file.type });
-        } catch (error) {
-          console.error("Compression error:", error);
-        }
-      }
+    Array.from(e.target.files).forEach(file => {
       formData.append("files", file);
-    }
+    });
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
