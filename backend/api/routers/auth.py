@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from core.security import verify_password, get_password_hash, create_access_token
 from core.config import settings
-from models import User, RoleEnum
+from models import User, RoleEnum, File as DBFile
 from schemas.auth import Token, UserCreate, UserOut
 from api.deps import get_db, get_current_user
 import uuid
@@ -50,3 +50,12 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Delete user's files
+    db.query(DBFile).filter(DBFile.uploader_id == current_user.id).delete(synchronize_session=False)
+    # Delete the user
+    db.delete(current_user)
+    db.commit()
+    return None

@@ -21,6 +21,8 @@ interface GalleryProps {
 const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState<Record<string, {width: number, height: number}>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,35 +62,95 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     }
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await uploadFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
+  const uploadFiles = async (fileList: File[]) => {
     setUploading(true);
+    setUploadProgress(0);
     const formData = new FormData();
-    Array.from(e.target.files).forEach(file => {
+    fileList.forEach(file => {
       formData.append("files", file);
     });
 
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+    
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${apiUrl}/files/`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percentComplete);
+        }
+      };
+
+      xhr.onload = async () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          await fetchFiles();
+          resolve();
+        } else {
+          console.error("Upload failed with status", xhr.status);
+          reject(new Error("Upload failed"));
+        }
+        setUploading(false);
+        setUploadProgress(null);
+      };
+
+      xhr.onerror = () => {
+        console.error("Upload failed due to network error");
+        setUploading(false);
+        setUploadProgress(null);
+        reject(new Error("Network Error"));
+      };
+
+      xhr.send(formData);
+    });
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    await uploadFiles(Array.from(e.target.files));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("WARNING: This will permanently delete your account and ALL your photos. This action cannot be undone. Are you absolutely sure?")) return;
+    
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${apiUrl}/files/`, {
-        method: 'POST',
+      const response = await fetch(`${apiUrl}/auth/me`, {
+        method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
-        },
-        body: formData,
+        }
       });
       if (response.ok) {
-        // Fetch files again to ensure UI updates even if WS fails
-        await fetchFiles();
+        onLogout();
+      } else {
+        alert("Failed to delete account.");
       }
     } catch (err) {
-      console.error("Upload failed", err);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      console.error("Delete account failed", err);
     }
   };
 
@@ -163,7 +225,22 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen mesh-bg text-white relative overflow-hidden font-sans">
+    <div 
+      className="min-h-screen mesh-bg text-white relative overflow-hidden font-sans"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center border-4 border-dashed border-white/50 m-4 rounded-3xl pointer-events-none transition-all duration-300">
+          <div className="text-3xl font-bold text-white flex flex-col items-center">
+            <svg className="w-20 h-20 mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            Drop photos here to upload
+          </div>
+        </div>
+      )}
       <div className="relative z-10 max-w-[1400px] mx-auto px-4 py-8">
         {/* Header */}
         <header className="flex flex-row justify-between items-center mb-6 sm:mb-10 glass-panel p-2 px-4 sm:p-3 sm:px-6 rounded-full animate-fade-in-up">
@@ -192,6 +269,12 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               />
             </label>
             <button 
+              onClick={handleDeleteAccount} 
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-red-500/20 hover:!bg-red-500/40 text-red-200 border border-red-500/30 whitespace-nowrap"
+            >
+              Delete Account
+            </button>
+            <button 
               onClick={onLogout} 
               className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap"
             >
@@ -199,6 +282,18 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             </button>
           </div>
         </header>
+
+        {/* Progress Bar */}
+        {uploadProgress !== null && (
+          <div className="w-full bg-white/10 rounded-full h-1.5 mb-6 overflow-hidden">
+            <div 
+              className="bg-blue-400 h-1.5 rounded-full transition-all duration-300 relative" 
+              style={{ width: `${uploadProgress}%` }}
+            >
+              <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
+            </div>
+          </div>
+        )}
 
         {/* Grid */}
         <PhotoSwipeGallery>
