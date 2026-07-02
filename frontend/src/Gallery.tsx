@@ -218,9 +218,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
               const baseUrl = apiUrl.replace('/api/v1', '');
               
-              const fileUrl = file.storage_path.startsWith('http') 
-                ? file.storage_path 
-                : `${baseUrl}${file.storage_path.replace('..', '')}`;
+              const fileUrl = (file.storage_path || '').startsWith('http') 
+                ? (file.storage_path || '')
+                : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;
                 
               // If Cloudinary succeeded, it has a preview_url. If it failed to local, 
               // Pillow might have failed to generate the preview, so we use fileUrl as a bulletproof fallback.
