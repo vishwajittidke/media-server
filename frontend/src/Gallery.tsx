@@ -717,7 +717,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                             {/* Favorite Button Overlay */}
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleFavorite(file.id); }}
-                              className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-300 z-30 ${file.is_favorite ? 'opacity-100 bg-white/20' : 'opacity-0 group-hover:opacity-100 bg-black/20 hover:bg-black/40'}`}
+                              className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-300 z-30 ${file.is_favorite ? 'opacity-100 bg-white/20' : 'opacity-100 sm:opacity-0 group-hover:opacity-100 bg-black/20 hover:bg-black/40'}`}
                             >
                               <svg className={`w-5 h-5 ${file.is_favorite ? 'text-red-500' : 'text-white/80'}`} fill={file.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
                             </button>
