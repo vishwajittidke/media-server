@@ -163,7 +163,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   };
 
   const compressImage = (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!file.type.startsWith('image/')) {
         resolve(file); return;
       }
