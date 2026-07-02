@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Gallery as PhotoSwipeGallery, Item } from 'react-photoswipe-gallery';
 import 'photoswipe/dist/photoswipe.css';
 import exifr from 'exifr';
@@ -523,6 +523,47 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               </svg>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Gallery</h1>
+          </div>
+          
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <label className="premium-btn cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 !px-3 sm:!px-6 !py-1.5 sm:!py-2.5">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <span className="text-sm sm:text-base whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>
+              <input 
+                type="file" 
+                multiple 
+                className="hidden" 
+                ref={fileInputRef}
+                onChange={handleUpload}
+                disabled={uploading}
+              />
+            </label>
+            <button 
+              onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
+            >
+              {isSelectMode ? 'Cancel' : 'Select'}
+            </button>
+            <button 
+              onClick={() => setShowPasswordModal(true)}
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
+            >
+              Security
+            </button>
+            <button 
+              onClick={handleDeleteAccount} 
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-red-500/20 hover:!bg-red-500/40 text-red-200 border border-red-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
+            >
+              Delete Account
+            </button>
+            <button 
+              onClick={onLogout} 
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
+            >
+              Log Out
+            </button>
           </div>
           
           {/* Tabs */}
