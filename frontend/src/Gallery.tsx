@@ -214,9 +214,13 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         setNewFolderName('');
         setShowCreateModal(false);
         fetchFolders();
+      } else {
+        const errorText = await response.text();
+        alert(`Failed to create album: ${response.status} - ${errorText}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create folder", err);
+      alert(`Network error: ${err.message}`);
     }
   };
 
