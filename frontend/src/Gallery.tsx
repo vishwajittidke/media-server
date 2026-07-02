@@ -21,6 +21,7 @@ interface GalleryProps {
 const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState<Record<string, {width: number, height: number}>>({});
@@ -29,17 +30,35 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   useEffect(() => {
     fetchFiles();
 
-    const wsUrl = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8000/api/v1/ws`;
-    const ws = new WebSocket(`${wsUrl}/${token}`);
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "FILE_UPLOADED") {
-        setFiles(prev => [data.file, ...prev]);
-      }
+    let ws: WebSocket;
+    let reconnectTimer: NodeJS.Timeout;
+
+    const connectWs = () => {
+      const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);
+      ws = new WebSocket(`${wsUrl}/${token}`);
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "FILE_UPLOADED") {
+          // Verify it's not already in the state before prepending
+          setFiles(prev => prev.some(f => f.id === data.file.id) ? prev : [data.file, ...prev]);
+        }
+      };
+
+      ws.onclose = () => {
+        // Reconnect after 3 seconds if connection drops
+        reconnectTimer = setTimeout(connectWs, 3000);
+      };
     };
 
+    connectWs();
+
     return () => {
-      ws.close();
+      clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null; // Prevent reconnect loop on unmount
+        ws.close();
+      }
     };
   }, [token]);
 
@@ -59,6 +78,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       }
     } catch (err) {
       console.error("Failed to fetch files", err);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -83,46 +104,56 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const uploadFiles = async (fileList: File[]) => {
     setUploading(true);
     setUploadProgress(0);
-    const formData = new FormData();
-    fileList.forEach(file => {
-      formData.append("files", file);
-    });
-
+    
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
     
-    return new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${apiUrl}/files/`);
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(percentComplete);
-        }
-      };
+    let totalBytesLoaded = 0;
+    const totalBytesToUpload = fileList.reduce((acc, file) => acc + file.size, 0);
 
-      xhr.onload = async () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          await fetchFiles();
-          resolve();
-        } else {
-          console.error("Upload failed with status", xhr.status);
-          reject(new Error("Upload failed"));
-        }
-        setUploading(false);
-        setUploadProgress(null);
-      };
+    // Upload sequentially to avoid Payload Too Large errors (413)
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const formData = new FormData();
+      formData.append("files", file);
 
-      xhr.onerror = () => {
-        console.error("Upload failed due to network error");
-        setUploading(false);
-        setUploadProgress(null);
-        reject(new Error("Network Error"));
-      };
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${apiUrl}/files/`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        
+        // We only track the progress of the CURRENT file and add it to previous files' total
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const currentTotalLoaded = totalBytesLoaded + event.loaded;
+            const percentComplete = Math.round((currentTotalLoaded / totalBytesToUpload) * 100);
+            setUploadProgress(Math.min(percentComplete, 100));
+          }
+        };
 
-      xhr.send(formData);
-    });
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            totalBytesLoaded += file.size; // Lock in the file's size upon completion
+            resolve();
+          } else {
+            console.error(`Upload failed for ${file.name} with status`, xhr.status);
+            // We resolve instead of reject so one failed file doesn't stop the rest
+            resolve(); 
+          }
+        };
+
+        xhr.onerror = () => {
+          console.error(`Upload failed for ${file.name} due to network error`);
+          resolve(); 
+        };
+
+        xhr.send(formData);
+      });
+    }
+
+    // After all files are uploaded (or failed), fetch the final list
+    await fetchFiles();
+    setUploading(false);
+    setUploadProgress(null);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -298,7 +329,18 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         {/* Grid */}
         <PhotoSwipeGallery>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-            {files.length === 0 && (
+            
+            {initialLoading && Array.from({ length: 12 }).map((_, i) => (
+              <div 
+                key={`skeleton-${i}`} 
+                className="aspect-square glass-panel rounded-[28px] relative overflow-hidden animate-pulse bg-white/5"
+                style={{ animationDelay: `${(i % 10) * 0.1}s` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+              </div>
+            ))}
+
+            {!initialLoading && files.length === 0 && (
               <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-500">
                 <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -307,7 +349,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               </div>
             )}
             
-            {files.map((file, idx) => {
+            {!initialLoading && files.map((file, idx) => {
               const isImage = file.mime_type && file.mime_type.startsWith('image/');
               // Use direct stored URLs since we're using Cloudinary, or fallback to local
               const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';

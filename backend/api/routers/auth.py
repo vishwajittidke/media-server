@@ -6,6 +6,8 @@ from datetime import timedelta
 from core.security import verify_password, get_password_hash, create_access_token
 from core.config import settings
 from models import User, RoleEnum, File as DBFile
+import cloudinary
+import cloudinary.uploader
 from schemas.auth import Token, UserCreate, UserOut
 from api.deps import get_db, get_current_user
 import uuid
@@ -53,9 +55,21 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Delete user's files
-    db.query(DBFile).filter(DBFile.uploader_id == current_user.id).delete(synchronize_session=False)
-    # Delete the user
+    # Fetch all user's files
+    user_files = db.query(DBFile).filter(DBFile.owner_id == current_user.id).all()
+    
+    # 1. Delete from Cloudinary to prevent orphaned storage
+    for db_file in user_files:
+        if db_file.storage_path and db_file.storage_path.startswith("http"):
+            try:
+                cloudinary.uploader.destroy(f"media_server/{db_file.sha256}")
+            except Exception as e:
+                print(f"Failed to delete {db_file.sha256} from Cloudinary: {e}")
+                
+    # 2. Delete from database
+    db.query(DBFile).filter(DBFile.owner_id == current_user.id).delete(synchronize_session=False)
+    
+    # 3. Delete the user
     db.delete(current_user)
     db.commit()
     return None

@@ -62,3 +62,9 @@
   animation: mesh-pan 15s ease infinite;
 }
 
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
