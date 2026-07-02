@@ -39,9 +39,40 @@ def create_folder(folder_in: FolderCreate, current_user: User = Depends(get_curr
     db.refresh(db_folder)
     return db_folder
 
-@router.get("/", response_model=List[FolderOut])
-def list_folders(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Folder).filter(Folder.owner_id == current_user.id).order_by(Folder.created_at.desc()).all()
+@router.get("/")
+def list_folders(
+    parent_id: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Folder).filter(Folder.owner_id == current_user.id)
+    if parent_id:
+        query = query.filter(Folder.parent_id == parent_id)
+    else:
+        query = query.filter(Folder.parent_id == None)
+        
+    folders = query.order_by(Folder.created_at.desc()).all()
+    
+    result = []
+    for f in folders:
+        cover_url = None
+        # Get the latest file in this folder for the cover
+        latest_file = db.query(File).filter(File.folder_id == f.id).order_by(File.created_at.desc()).first()
+        if latest_file and latest_file.storage_path and latest_file.storage_path.startswith("http"):
+            public_id = f"media_server/{latest_file.sha256}"
+            import cloudinary
+            cover_url = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
+            
+        result.append({
+            "id": f.id,
+            "name": f.name,
+            "parent_id": f.parent_id,
+            "owner_id": f.owner_id,
+            "created_at": f.created_at,
+            "cover_url": cover_url
+        })
+        
+    return result
 
 @router.delete("/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_folder(folder_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

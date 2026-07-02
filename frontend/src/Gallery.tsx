@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Gallery as PhotoSwipeGallery, Item } from 'react-photoswipe-gallery';
 import 'photoswipe/dist/photoswipe.css';
+import exifr from 'exifr';
 
 interface FileItem {
   id: string;
@@ -11,12 +12,15 @@ interface FileItem {
   storage_path?: string;
   thumbnail_url?: string;
   preview_url?: string;
+  is_favorite?: boolean;
+  date_taken?: string;
 }
 
 interface FolderItem {
   id: string;
   name: string;
   created_at: string;
+  cover_url?: string;
 }
 
 interface GalleryProps {
@@ -29,7 +33,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'photos' | 'albums'>('photos');
+  const [activeTab, setActiveTab] = useState<'photos' | 'albums' | 'favorites'>('photos');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -99,8 +103,11 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       if (pageNum === 0) setInitialLoading(true);
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
       let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
-      if (folderId) {
+      if (folderId && activeTab !== 'favorites') {
         url += `&folder_id=${folderId}`;
+      }
+      if (activeTab === 'favorites') {
+        url += `&is_favorite=true`;
       }
       const response = await fetch(url, {
         headers: {
@@ -210,6 +217,16 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       const file = compressedFiles[i];
       const formData = new FormData();
       formData.append("files", file);
+      
+      try {
+        const exifData = await exifr.parse(file, { pick: ['DateTimeOriginal'] });
+        if (exifData && exifData.DateTimeOriginal) {
+          formData.append("date_taken", exifData.DateTimeOriginal.toISOString());
+        }
+      } catch (e) {
+        // silently ignore EXIF parsing errors
+      }
+
       if (currentFolderId) {
         formData.append("folder_id", currentFolderId);
       }
@@ -330,6 +347,26 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       }
     } catch (err) {
       console.error("Failed to move file", err);
+    }
+  };
+
+  const toggleFavorite = async (fileId: string) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${apiUrl}/files/${fileId}/favorite`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (activeTab === 'favorites' && !data.is_favorite) {
+          setFiles(prev => prev.filter(f => f.id !== fileId));
+        } else {
+          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, is_favorite: data.is_favorite } : f));
+        }
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -488,66 +525,30 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Gallery</h1>
           </div>
           
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">
-            <label className="premium-btn cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 !px-3 sm:!px-6 !py-1.5 sm:!py-2.5">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              <span className="text-sm sm:text-base whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>
-              <input 
-                type="file" 
-                multiple 
-                className="hidden" 
-                ref={fileInputRef}
-                onChange={handleUpload}
-                disabled={uploading}
-              />
-            </label>
+          {/* Tabs */}
+          <div className="flex bg-black/40 backdrop-blur-xl rounded-full p-1 border border-white/10 sm:mx-0 mx-auto w-full sm:w-auto overflow-hidden">
             <button 
-              onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
+              onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); }}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-sm font-semibold transition-all ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
             >
-              {isSelectMode ? 'Cancel' : 'Select'}
+              All Photos
             </button>
             <button 
-              onClick={() => setShowPasswordModal(true)}
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
+              onClick={() => setActiveTab('albums')}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-sm font-semibold transition-all ${activeTab === 'albums' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
             >
-              Security
+              Albums
             </button>
             <button 
-              onClick={handleDeleteAccount} 
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-red-500/20 hover:!bg-red-500/40 text-red-200 border border-red-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
+              onClick={() => { setActiveTab('favorites'); setCurrentFolderId(null); }}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center justify-center gap-1 ${activeTab === 'favorites' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
             >
-              Delete Account
-            </button>
-            <button 
-              onClick={onLogout} 
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
-            >
-              Log Out
+              <svg className="w-4 h-4 text-red-500" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+              <span className="hidden sm:inline">Favorites</span>
             </button>
           </div>
         </header>
 
-        {/* Tabs Navigation */}
-        {!currentFolderId && (
-          <div className="flex justify-center mb-8 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
-            <div className="bg-white/10 backdrop-blur-xl p-1 rounded-full flex space-x-1 border border-white/20">
-              <button 
-                onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); }}
-                className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activeTab === 'photos' ? 'bg-white text-slate-900 shadow-md scale-105' : 'text-white/70 hover:text-white'}`}
-              >
-                All Photos
-              </button>
-              <button 
-                onClick={() => { setActiveTab('albums'); setCurrentFolderId(null); }}
-                className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activeTab === 'albums' ? 'bg-white text-slate-900 shadow-md scale-105' : 'text-white/70 hover:text-white'}`}
-              >
-                Albums
-              </button>
-            </div>
-          </div>
         )}
 
         {/* Folder Header */}
@@ -597,11 +598,15 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                 className="aspect-square glass-panel rounded-[28px] flex flex-col relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-transform duration-300"
                 style={{ animationDelay: `${(idx % 10) * 0.05}s` }}
               >
-                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/40 z-10"></div>
+                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/40 z-10 transition-opacity opacity-60 group-hover:opacity-40"></div>
                 
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity z-0">
-                  <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
-                </div>
+                {folder.cover_url ? (
+                  <img src={folder.cover_url} alt="Cover" className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" />
+                ) : (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity z-0">
+                    <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+                  </div>
+                )}
                 
                 <button 
                   onClick={(e) => handleDeleteFolder(e, folder.id)}
@@ -680,8 +685,16 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                               loading="lazy"
                               onError={(e) => { (e.target as HTMLImageElement).src = fileUrl; }}
                             />
+                            {/* Favorite Button Overlay */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleFavorite(file.id); }}
+                              className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-300 z-30 ${file.is_favorite ? 'opacity-100 bg-white/20' : 'opacity-0 group-hover:opacity-100 bg-black/20 hover:bg-black/40'}`}
+                            >
+                              <svg className={`w-5 h-5 ${file.is_favorite ? 'text-red-500' : 'text-white/80'}`} fill={file.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                            </button>
+                            
                             {isSelectMode && (
-                              <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40">
+                              <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40 z-20 pointer-events-none">
                                 {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}
                               </div>
                             )}

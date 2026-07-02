@@ -1,0 +1,16 @@
+{
+  "name": "Media Server",
+  "short_name": "Media Server",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "description": "Your Personal Google Photos Clone",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

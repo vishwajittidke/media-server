@@ -61,6 +61,8 @@ class File(Base):
     storage_path = Column(String)
     thumbnail_path = Column(String, nullable=True)
     upload_status = Column(Enum(UploadStatusEnum), default=UploadStatusEnum.PENDING)
+    is_favorite = Column(Boolean, default=False)
+    date_taken = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
