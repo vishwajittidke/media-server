@@ -41,6 +41,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ old: '', new: '' });
   const [uploading, setUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -547,22 +548,11 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               {isSelectMode ? 'Cancel' : 'Select'}
             </button>
             <button 
-              onClick={() => setShowPasswordModal(true)}
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
+              onClick={() => setShowSettingsModal(true)}
+              className="premium-btn !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"
+              title="Settings"
             >
-              Security
-            </button>
-            <button 
-              onClick={handleDeleteAccount} 
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-red-500/20 hover:!bg-red-500/40 text-red-200 border border-red-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
-            >
-              Delete Account
-            </button>
-            <button 
-              onClick={onLogout} 
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex-1 justify-center sm:flex-none"
-            >
-              Log Out
+              <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
           </div>
           
@@ -913,6 +903,46 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                 <button type="submit" disabled={!passwordForm.old || !passwordForm.new} className="flex-1 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50">Save</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
+            <h3 className="text-xl font-bold mb-6 text-white text-center">Settings</h3>
+            <div className="space-y-3">
+              <button 
+                onClick={() => { setShowSettingsModal(false); setShowPasswordModal(true); }}
+                className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 font-medium transition-colors text-white flex items-center justify-between"
+              >
+                <span>Change Password</span>
+                <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+              </button>
+              
+              <button 
+                onClick={onLogout} 
+                className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 font-medium transition-colors text-white flex items-center justify-between"
+              >
+                <span>Log Out</span>
+                <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+              </button>
+
+              <button 
+                onClick={handleDeleteAccount} 
+                className="w-full py-3 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 font-medium transition-colors text-red-400 flex items-center justify-between border border-red-500/20"
+              >
+                <span>Delete Account</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              </button>
+            </div>
+            <button 
+              onClick={() => setShowSettingsModal(false)}
+              className="w-full mt-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
