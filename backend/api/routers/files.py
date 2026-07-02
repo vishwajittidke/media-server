@@ -78,6 +78,7 @@ async def upload_files(
         thumbnail_url = None
         preview_url = None
 
+        cloudinary_success = False
         if settings.CLOUDINARY_URL:
             # Upload to Cloudinary
             try:
@@ -88,20 +89,20 @@ async def upload_files(
                     public_id=file_hash
                 )
                 final_path = upload_res.get("secure_url")
+                cloudinary_success = True
                 
                 # Cloudinary automatic transformations
                 if mime_type.startswith("image/"):
-                    # Web-friendly preview (max 2048)
                     preview_url = cloudinary.CloudinaryImage(upload_res["public_id"]).build_url(
                         secure=True, width=2048, crop="limit"
                     )
-                    # Grid thumbnail (400)
                     thumbnail_url = cloudinary.CloudinaryImage(upload_res["public_id"]).build_url(
                         secure=True, width=400, crop="limit"
                     )
             except Exception as e:
                 print(f"Cloudinary upload failed: {e}")
-        else:
+                
+        if not cloudinary_success:
             # Fallback local generation
             if mime_type.startswith("image/"):
                 os.makedirs(settings.THUMBNAILS_DIR, exist_ok=True)

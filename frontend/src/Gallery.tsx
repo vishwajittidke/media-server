@@ -71,13 +71,17 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      await fetch(`${apiUrl}/files/`, {
+      const response = await fetch(`${apiUrl}/files/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
         body: formData,
       });
+      if (response.ok) {
+        // Fetch files again to ensure UI updates even if WS fails
+        await fetchFiles();
+      }
     } catch (err) {
       console.error("Upload failed", err);
     } finally {
@@ -187,12 +191,16 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             {files.map((file, idx) => {
               const isImage = file.mime_type && file.mime_type.startsWith('image/');
               // Use direct stored URLs since we're using Cloudinary, or fallback to local
-              const fileUrl = file.storage_path || `http://${window.location.hostname}:8000/uploads/${file.stored_name}`;
+              const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+              const baseUrl = apiUrl.replace('/api/v1', '');
               
-              // Cloudinary can generate thumbnails via URL manipulation or the backend can provide them.
-              // Assuming backend provides 'thumbnail_url' and 'preview_url' properties now.
-              const thumbnailUrl = isImage ? (file.thumbnail_url || fileUrl) : fileUrl;
-              const previewUrl = isImage ? (file.preview_url || fileUrl) : fileUrl;
+              const isLocal = !file.storage_path?.startsWith('http');
+              const fileUrl = isLocal 
+                ? `${baseUrl}/uploads/${file.stored_name}` 
+                : (file.storage_path || '');
+              
+              const thumbnailUrl = isImage ? (file.thumbnail_url || (isLocal ? `${baseUrl}/thumbnails/${file.stored_name}` : fileUrl)) : fileUrl;
+              const previewUrl = isImage ? (file.preview_url || (isLocal ? `${baseUrl}/previews/${file.stored_name}` : fileUrl)) : fileUrl;
               const dim = dimensions[file.id] || { width: 1024, height: 768 }; // Temporary fallback until loaded
               
               return (
