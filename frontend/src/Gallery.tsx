@@ -99,41 +99,92 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     };
   }, [token, currentFolderId]);
 
-  const fetchFiles = async (folderId: string | null, pageNum: number) => {
-    try {
-      if (pageNum === 0) setInitialLoading(true);
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
-      if (folderId && activeTab !== 'favorites') {
-        url += `&folder_id=${folderId}`;
-      }
-      if (activeTab === 'favorites') {
-        url += `&is_favorite=true`;
-      }
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.length < 50) setHasMore(false);
-        else setHasMore(true);
+  // const fetchFiles = async (folderId: string | null, pageNum: number) => {
+  //   try {
+  //     if (pageNum === 0) setInitialLoading(true);
+  //     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+  //     let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
+  //     if (folderId && activeTab !== 'favorites') {
+  //       url += `&folder_id=${folderId}`;
+  //     }
+  //     if (activeTab === 'favorites') {
+  //       url += `&is_favorite=true`;
+  //     }
+  //     const response = await fetch(url, {
+  //       headers: {
+  //         'Authorization': `Bearer ${token}`
+  //       }
+  //     });
+  //     if (response.ok) {
+  //       const data = await response.json();
+  //       if (data.length < 50) setHasMore(false);
+  //       else setHasMore(true);
         
-        if (pageNum === 0) {
-          setFiles(data);
-        } else {
-          setFiles(prev => [...prev, ...data]);
-        }
-      } else if (response.status === 401) {
-        onLogout();
-      }
-    } catch (err) {
-      console.error("Failed to fetch files", err);
-    } finally {
-      if (pageNum === 0) setInitialLoading(false);
+  //       if (pageNum === 0) {
+  //         setFiles(data);
+  //       } else {
+  //         setFiles(prev => [...prev, ...data]);
+  //       }
+  //     } else if (response.status === 401) {
+  //       onLogout();
+  //     }
+  //   } catch (err) {
+  //     console.error("Failed to fetch files", err);
+  //   } finally {
+  //     if (pageNum === 0) setInitialLoading(false);
+  //   }
+  // };
+
+  const fetchFiles = async (folderId: string | null, pageNum: number) => {
+  const cacheKey = `files_${folderId || 'root'}_${activeTab}_${pageNum}`;
+  
+  // 1. Check for cached data first to save API limits
+  const cachedData = sessionStorage.getItem(cacheKey);
+  if (pageNum === 0 && cachedData) {
+    setFiles(JSON.parse(cachedData));
+    setInitialLoading(false);
+    return; // Exit early: No network request made!
+  }
+
+  try {
+    if (pageNum === 0) setInitialLoading(true);
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+    let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
+    
+    if (folderId && activeTab !== 'favorites') {
+      url += `&folder_id=${folderId}`;
     }
-  };
+    if (activeTab === 'favorites') {
+      url += `&is_favorite=true`;
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      // 2. Cache the data if it's the first page
+      if (pageNum === 0) {
+        sessionStorage.setItem(cacheKey, JSON.stringify(data));
+        setFiles(data);
+      } else {
+        setFiles(prev => [...prev, ...data]);
+      }
+      
+      setHasMore(data.length === 50);
+    } else if (response.status === 401) {
+      onLogout();
+    }
+  } catch (err) {
+    console.error("Failed to fetch files", err);
+  } finally {
+    if (pageNum === 0) setInitialLoading(false);
+  }
+};
 
   const fetchFolders = async () => {
     try {
