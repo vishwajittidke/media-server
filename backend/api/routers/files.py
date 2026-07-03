@@ -172,7 +172,7 @@ def list_files(
 ):
     query = db.query(DBFile).filter(DBFile.owner_id == current_user.id)
     if is_favorite and is_favorite.lower() == 'true':
-        query = query.filter(DBFile.is_favorite == 1)
+        query = query.filter(DBFile.is_favorite == True)
     elif folder_id:
         query = query.filter(DBFile.folder_id == folder_id)
     else:
