@@ -653,7 +653,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         )}
 
         {/* Files Grid */}
-        {(activeTab === 'photos' || currentFolderId) && (
+        {(activeTab === 'photos' || activeTab === 'favorites' || currentFolderId) && (
           <PhotoSwipeGallery>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
               
