@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -12,11 +12,13 @@ import cloudinary.uploader
 from schemas.auth import Token, UserCreate, UserOut
 from api.deps import get_db, get_current_user
 import uuid
+from core.limiter import limiter
 
 router = APIRouter()
 
 @router.post("/login", response_model=Token)
-def login_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("20/minute")
+def login_access_token(request: Request, db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=400, detail="Incorrect username or password")

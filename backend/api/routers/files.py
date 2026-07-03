@@ -31,7 +31,9 @@ def get_file_hash(filepath: str) -> str:
     return sha256_hash.hexdigest()
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
 async def upload_files(
+    request: Request,
     files: List[UploadFile] = FastAPIFile(...), 
     folder_id: str = Form(None),
     date_taken: str = Form(None),
@@ -162,15 +164,15 @@ async def upload_files(
 @router.get("/")
 def list_files(
     folder_id: str = None,
-    is_favorite: bool = None,
+    is_favorite: str = None,
     skip: int = 0,
     limit: int = 50,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     query = db.query(DBFile).filter(DBFile.owner_id == current_user.id)
-    if is_favorite:
-        query = query.filter(DBFile.is_favorite == True)
+    if is_favorite and is_favorite.lower() == 'true':
+        query = query.filter(DBFile.is_favorite == 1)
     elif folder_id:
         query = query.filter(DBFile.folder_id == folder_id)
     else:
