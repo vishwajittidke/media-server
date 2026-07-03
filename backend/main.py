@@ -17,11 +17,20 @@ from core.config import settings
 Base.metadata.create_all(bind=engine)
 
 # Auto-migration
+# from sqlalchemy import text
+# try:
+#     with engine.connect() as conn:
+#         conn.execute(text("ALTER TABLE files ADD COLUMN is_favorite BOOLEAN DEFAULT FALSE;"))
+#         conn.execute(text("ALTER TABLE files ADD COLUMN date_taken TIMESTAMP;"))
+#         conn.commit()
+# except Exception as e:
+#     print(f"Migration failed or already applied: {e}")
+# Auto-migration
 from sqlalchemy import text
 try:
     with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE files ADD COLUMN is_favorite BOOLEAN DEFAULT FALSE;"))
-        conn.execute(text("ALTER TABLE files ADD COLUMN date_taken TIMESTAMP;"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE;"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS date_taken TIMESTAMP;"))
         conn.commit()
 except Exception as e:
     print(f"Migration failed or already applied: {e}")
@@ -59,8 +68,14 @@ os.makedirs("../previews", exist_ok=True)
 app.mount("/previews", StaticFiles(directory="../previews"), name="previews")
 
 @app.get("/api/v1/health")
+@app.head("/")
+async def root_health_check():
+    return {"status": "ok", "message": "Service is live"}
+    
 async def health_check():
     return {"status": "ok", "message": "Media Server is running"}
+
+
 
 if __name__ == "__main__":
     import uvicorn
