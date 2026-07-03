@@ -91,7 +91,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     connectWs();
 
     return () => {
-      clearTimeout(reconnectTimer);
+      
       if (ws) {
         ws.onclose = null;
         ws.close();
