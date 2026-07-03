@@ -1,0 +1,50 @@
+2026-07-03T07:35:57.083129929Z     result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-07-03T07:35:57.083133909Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 2373, in execute
+2026-07-03T07:35:57.08313811Z     return self._execute_internal(
+2026-07-03T07:35:57.0831412Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 2271, in _execute_internal
+2026-07-03T07:35:57.08314402Z     result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-07-03T07:35:57.08314654Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-07-03T07:35:57.083149Z     result = conn.execute(
+2026-07-03T07:35:57.08315145Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+2026-07-03T07:35:57.08315388Z     return meth(
+2026-07-03T07:35:57.08315644Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+2026-07-03T07:35:57.0831589Z     return connection._execute_clauseelement(
+2026-07-03T07:35:57.08316567Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1643, in _execute_clauseelement
+2026-07-03T07:35:57.08316814Z     ret = self._execute_context(
+2026-07-03T07:35:57.083170601Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+2026-07-03T07:35:57.08317307Z     return self._exec_single_context(
+2026-07-03T07:35:57.08317549Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+2026-07-03T07:35:57.08317789Z     self._handle_dbapi_exception(
+2026-07-03T07:35:57.083180391Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 2365, in _handle_dbapi_exception
+2026-07-03T07:35:57.083193751Z     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-07-03T07:35:57.083196491Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+2026-07-03T07:35:57.083198971Z     self.dialect.do_execute(
+2026-07-03T07:35:57.083201451Z   File "/opt/render/project/src/.venv/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-07-03T07:35:57.083203871Z     cursor.execute(statement, parameters)
+2026-07-03T07:35:57.083206331Z sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedFunction) operator does not exist: boolean = integer
+2026-07-03T07:35:57.083208851Z LINE 3: ...84a-4da0-8425-71eee06bef0f' AND files.is_favorite = 1 ORDER ...
+2026-07-03T07:35:57.083250702Z                                                              ^
+2026-07-03T07:35:57.083259043Z HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-07-03T07:35:57.083262703Z 
+2026-07-03T07:35:57.083269013Z [SQL: SELECT files.id AS files_id, files.owner_id AS files_owner_id, files.folder_id AS files_folder_id, files.original_name AS files_original_name, files.stored_name AS files_stored_name, files.extension AS files_extension, files.mime_type AS files_mime_type, files.file_size AS files_file_size, files.sha256 AS files_sha256, files.width AS files_width, files.height AS files_height, files.storage_path AS files_storage_path, files.thumbnail_path AS files_thumbnail_path, files.upload_status AS files_upload_status, files.is_favorite AS files_is_favorite, files.date_taken AS files_date_taken, files.created_at AS files_created_at, files.updated_at AS files_updated_at 
+2026-07-03T07:35:57.083275003Z FROM files 
+2026-07-03T07:35:57.083279003Z WHERE files.owner_id = %(owner_id_1)s AND files.is_favorite = %(is_favorite_1)s ORDER BY coalesce(files.date_taken, files.created_at) DESC 
+2026-07-03T07:35:57.083282713Z  LIMIT %(param_1)s OFFSET %(param_2)s]
+2026-07-03T07:35:57.083286883Z [parameters: {'owner_id_1': 'f1ff159d-284a-4da0-8425-71eee06bef0f', 'is_favorite_1': 1, 'param_1': 50, 'param_2': 0}]
+2026-07-03T07:35:57.083289443Z (Background on this error at: https://sqlalche.me/e/20/f405)
+2026-07-03T07:36:09.647541007Z 27.61.32.6:0 - "GET /api/v1/files/?skip=0&limit=50 HTTP/1.1" 200
+2026-07-03T07:36:24.413113076Z 27.61.32.6:0 - "OPTIONS /api/v1/files/?skip=0&limit=50 HTTP/1.1" 200
+2026-07-03T07:36:24.420023565Z 27.61.32.6:0 - "OPTIONS /api/v1/folders/ HTTP/1.1" 200
+2026-07-03T07:36:24.570951158Z [2026-07-03 07:36:24 +0000] [67] [INFO] 27.61.32.6:0 - "WebSocket /api/v1/ws/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODM2NjY5NjEsInN1YiI6ImYxZmYxNTlkLTI4NGEtNGRhMC04NDI1LTcxZWVlMDZiZWYwZiJ9.NuP01VguOLJSa0WuStWCIuDyJZ6nZCgUniugx1rB27c" [accepted]
+2026-07-03T07:36:24.571167893Z [2026-07-03 07:36:24 +0000] [67] [INFO] connection open
+2026-07-03T07:36:24.796619305Z 27.61.32.6:0 - "GET /api/v1/files/?skip=0&limit=50 HTTP/1.1" 200
+2026-07-03T07:36:25.573144794Z 27.61.32.6:0 - "GET /api/v1/folders/ HTTP/1.1" 200
+2026-07-03T07:36:30.08518563Z 27.61.32.6:0 - "OPTIONS /api/v1/files/?skip=0&limit=50 HTTP/1.1" 200
+2026-07-03T07:36:30.085725733Z 27.61.32.6:0 - "OPTIONS /api/v1/folders/ HTTP/1.1" 200
+2026-07-03T07:36:30.246431911Z [2026-07-03 07:36:30 +0000] [68] [INFO] 27.61.32.6:0 - "WebSocket /api/v1/ws/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODM2NjY5NjEsInN1YiI6ImYxZmYxNTlkLTI4NGEtNGRhMC04NDI1LTcxZWVlMDZiZWYwZiJ9.NuP01VguOLJSa0WuStWCIuDyJZ6nZCgUniugx1rB27c" [accepted]
+2026-07-03T07:36:30.246863091Z [2026-07-03 07:36:30 +0000] [68] [INFO] connection open
+2026-07-03T07:36:30.746013649Z 27.61.32.6:0 - "GET /api/v1/folders/ HTTP/1.1" 200
+2026-07-03T07:36:31.137968824Z 27.61.32.6:0 - "GET /api/v1/files/?skip=0&limit=50 HTTP/1.1" 200
+2026-07-03T07:36:31.357133101Z 27.61.32.6:0 - "GET /uploads/4ef36aae42a63927c07364794c1f2721a1c4ca3ab691fa5d009b46e040ebd201.jpeg HTTP/1.1" 200
+2026-07-03T07:36:31.431771653Z 27.61.32.6:0 - "GET /uploads/02a53e62f4de3cce7343f4737c73eb0ddcbeaf0664c985f3217d2f7823ea6755.jpeg HTTP/1.1" 200
+2026-07-03T07:36:33.877178811Z [2026-07-03 07:36:33 +0000] [67] [INFO] connection closed
