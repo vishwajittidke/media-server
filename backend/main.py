@@ -20,11 +20,11 @@ Base.metadata.create_all(bind=engine)
 from sqlalchemy import text
 try:
     with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE files ADD COLUMN is_favorite BOOLEAN DEFAULT 0;"))
-        conn.execute(text("ALTER TABLE files ADD COLUMN date_taken DATETIME;"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN is_favorite BOOLEAN DEFAULT FALSE;"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN date_taken TIMESTAMP;"))
         conn.commit()
-except Exception:
-    pass
+except Exception as e:
+    print(f"Migration failed or already applied: {e}")
 
 app = FastAPI(title=settings.PROJECT_NAME)
 app.state.limiter = limiter
