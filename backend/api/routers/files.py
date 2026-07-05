@@ -87,12 +87,10 @@ def resolve_file_urls(f: DBFile):
     Otherwise fall back to local static paths.
     """
     if f.storage_path and f.storage_path.startswith("http"):
-        # Extract the object path from the public URL
-        # URL format: {SUPABASE_URL}/storage/v1/object/public/{bucket}/{object_path}
         object_path = f"photos/{f.sha256}{f.extension}"
         if _sb_configured():
-            thumbnail_url = _sb_transform_url(object_path, width=400, quality=80)
-            preview_url   = _sb_transform_url(object_path, width=1920, quality=85)
+            thumbnail_url = _sb_transform_url(object_path, width=400, quality=70)
+            preview_url   = _sb_transform_url(object_path, width=1200, quality=70)
         else:
             thumbnail_url = f.storage_path
             preview_url   = f.storage_path
@@ -164,7 +162,7 @@ async def upload_files(
                     supabase_ok = True
 
                     if mime_type.startswith("image/"):
-                        thumbnail_path = _sb_transform_url(object_path, width=400, quality=80)
+                        thumbnail_path = _sb_transform_url(object_path, width=400, quality=70)
 
                     print(f"✅ Supabase upload OK: {original_name} → {object_path}")
                 except Exception as e:
