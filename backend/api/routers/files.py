@@ -94,8 +94,8 @@ def resolve_file_urls(f: DBFile):
         # Always generate Supabase transform URLs if Supabase is configured
         # The file may or may not be in Supabase — the transform URL will
         # return 404 if it's not, which the frontend handles gracefully
-        thumbnail_url = _sb_transform_url(object_path, width=400, quality=70)
-        preview_url   = _sb_transform_url(object_path, width=1920, quality=75)
+        thumbnail_url = _sb_transform_url(object_path, width=800, quality=80)
+        preview_url   = _sb_transform_url(object_path, width=2560, quality=80)
         
         # If storage_path is still a local path, serve the Supabase public URL as fallback
         if f.storage_path and f.storage_path.startswith("http"):
@@ -175,7 +175,7 @@ async def upload_files(
                     supabase_ok = True
 
                     if mime_type.startswith("image/"):
-                        thumbnail_path = _sb_transform_url(object_path, width=400, quality=70)
+                        thumbnail_path = _sb_transform_url(object_path, width=800, quality=80)
 
                     print(f"✅ Supabase upload OK: {original_name} → {object_path}")
                 except Exception as e:
@@ -195,18 +195,18 @@ async def upload_files(
                             if img.mode in ("RGBA", "P"):
                                 img = img.convert("RGB")
                             thumb = img.copy()
-                            thumb.thumbnail((400, 400))
+                            thumb.thumbnail((800, 800))
                             thumb.save(
                                 os.path.join(settings.THUMBNAILS_DIR, stored_name),
-                                format="JPEG", quality=85,
+                                format="JPEG", quality=80,
                             )
                         with Image.open(io.BytesIO(raw_bytes)) as img:
                             if img.mode in ("RGBA", "P"):
                                 img = img.convert("RGB")
-                            img.thumbnail((1920, 1080))
+                            img.thumbnail((2560, 1440))
                             img.save(
                                 os.path.join(settings.PREVIEWS_DIR, stored_name),
-                                format="JPEG", quality=85,
+                                format="JPEG", quality=80,
                             )
                     except Exception as e:
                         print(f"Local thumbnail error: {e}")
