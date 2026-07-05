@@ -33,7 +33,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'photos' | 'albums' | 'favorites'>('photos');
+  const [activeTab, setActiveTab] = useState<'photos' | 'albums' | 'favorites' | 'trash'>('photos');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -56,11 +56,15 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
       
-      if (folderId && activeTab !== 'favorites') {
-        url += `&folder_id=${folderId}`;
-      }
-      if (activeTab === 'favorites') {
-        url += `&is_favorite=true`;
+      if (activeTab === 'trash') {
+        url = `${apiUrl}/files/trash/list?skip=${pageNum * 50}&limit=50`;
+      } else {
+        if (folderId && activeTab !== 'favorites') {
+          url += `&folder_id=${folderId}`;
+        }
+        if (activeTab === 'favorites') {
+          url += `&is_favorite=true`;
+        }
       }
 
       const response = await fetch(url, {
@@ -463,7 +467,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const handleDelete = async (e: React.MouseEvent, fileId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this photo?")) return;
+    if (!window.confirm("Are you sure you want to delete this photo? It will be moved to the Recycle Bin.")) return;
     
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
@@ -474,13 +478,68 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         }
       });
       
-      if (response.ok) {
+      if (response.ok || response.status === 204) {
         setFiles(prev => prev.filter(f => f.id !== fileId));
       } else {
         alert("Failed to delete file.");
       }
     } catch (err) {
       console.error("Delete failed", err);
+    }
+  };
+
+  const handleRestore = async (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const response = await fetch(`${apiUrl}/files/trash/${fileId}/restore`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setFiles(prev => prev.filter(f => f.id !== fileId));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePermanentDelete = async (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Permanently delete this photo? This cannot be undone.")) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const response = await fetch(`${apiUrl}/files/trash/${fileId}/permanent`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok || response.status === 204) {
+        setFiles(prev => prev.filter(f => f.id !== fileId));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    if (!window.confirm("Permanently delete ALL photos in the Recycle Bin? This cannot be undone.")) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const response = await fetch(`${apiUrl}/files/trash/empty`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setFiles([]);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -559,25 +618,32 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
           </div>
           
           {/* Tabs */}
-          <div className="flex bg-black/40 backdrop-blur-xl rounded-full p-1 border border-white/10 sm:mx-0 mx-auto w-full sm:w-auto overflow-hidden">
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-center px-4 w-full sm:w-auto">
             <button 
-              onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); }}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-sm font-semibold transition-all ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+              onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); setIsSelectMode(false); }}
+              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
               All Photos
             </button>
             <button 
-              onClick={() => setActiveTab('albums')}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-sm font-semibold transition-all ${activeTab === 'albums' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+              onClick={() => { setActiveTab('albums'); setIsSelectMode(false); }}
+              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'albums' ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
               Albums
             </button>
             <button 
-              onClick={() => { setActiveTab('favorites'); setCurrentFolderId(null); }}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-sm font-semibold transition-all flex items-center justify-center gap-1 ${activeTab === 'favorites' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+              onClick={() => { setActiveTab('favorites'); setCurrentFolderId(null); setIsSelectMode(false); }}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'favorites' ? 'bg-red-500/10 text-red-500 shadow-lg shadow-red-500/10 scale-105 border border-red-500/20' : 'bg-white/5 text-red-400/70 hover:bg-red-500/10 hover:text-red-400'}`}
             >
-              <svg className="w-4 h-4 text-red-500" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-              <span className="hidden sm:inline">Favorites</span>
+              <svg className="w-4 h-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+              Favorites
+            </button>
+            <button 
+              onClick={() => { setActiveTab('trash'); setCurrentFolderId(null); setIsSelectMode(false); }}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'trash' ? 'bg-orange-500/10 text-orange-500 shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/20' : 'bg-white/5 text-orange-400/70 hover:bg-orange-500/10 hover:text-orange-400'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              Trash
             </button>
           </div>
         </header>
@@ -655,8 +721,16 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         )}
 
         {/* Files Grid */}
-        {(activeTab === 'photos' || activeTab === 'favorites' || currentFolderId) && (
+        {(activeTab === 'photos' || activeTab === 'favorites' || activeTab === 'trash' || currentFolderId) && (
           <PhotoSwipeGallery>
+            {activeTab === 'trash' && files.length > 0 && (
+              <div className="flex justify-between items-center mb-6 w-full px-2">
+                <span className="text-orange-400/80 text-sm font-medium">Items are permanently deleted after 30 days.</span>
+                <button onClick={handleEmptyTrash} className="text-sm font-semibold text-red-400 hover:text-red-300 px-4 py-2 bg-red-500/10 rounded-full hover:bg-red-500/20 transition-all">
+                  Empty Trash
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
               
               {initialLoading && Array.from({ length: 12 }).map((_, i) => (
@@ -722,13 +796,15 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                               loading="lazy"
                               onError={(e) => { (e.target as HTMLImageElement).src = fileUrl; }}
                             />
-                            {/* Favorite Button Overlay */}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleFavorite(file.id); }}
-                              className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-300 z-30 ${file.is_favorite ? 'opacity-100 bg-white/20' : 'opacity-100 sm:opacity-0 group-hover:opacity-100 bg-black/20 hover:bg-black/40'}`}
-                            >
-                              <svg className={`w-5 h-5 ${file.is_favorite ? 'text-red-500' : 'text-white/80'}`} fill={file.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-                            </button>
+                            {/* Favorite Button Overlay (hidden in trash) */}
+                            {activeTab !== 'trash' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(file.id); }}
+                                className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-300 z-30 ${file.is_favorite ? 'opacity-100 bg-white/20' : 'opacity-100 sm:opacity-0 group-hover:opacity-100 bg-black/20 hover:bg-black/40'}`}
+                              >
+                                <svg className={`w-5 h-5 ${file.is_favorite ? 'text-red-500' : 'text-white/80'}`} fill={file.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                              </button>
+                            )}
                             
                             {isSelectMode && (
                               <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40 z-20 pointer-events-none">
@@ -758,42 +834,68 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                       </>
                     )}
                     
-                    <button 
-                      onClick={(e) => handleDelete(e, file.id)}
-                      className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"
-                      title="Delete Photo"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-  
-                    <button 
-                      onClick={(e) => handleDownload(e, file.id, file.original_name)}
-                      className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
-                      title="Download Original"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                    </button>
-                    
-                    <div className="absolute bottom-3 left-3 right-3 bg-black/40 backdrop-blur-xl p-2 rounded-2xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 z-20 pointer-events-none border border-white/10">
-                      <p className="text-xs truncate w-full text-center font-medium text-white/90" title={file.original_name}>
-                        {file.original_name}
-                      </p>
-                    </div>
+                    {activeTab === 'trash' ? (
+                      <>
+                        <button 
+                          onClick={(e) => handlePermanentDelete(e, file.id)}
+                          className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"
+                          title="Delete Permanently"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                        
+                        <button 
+                          onClick={(e) => handleRestore(e, file.id)}
+                          className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                          title="Restore"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={(e) => handleDelete(e, file.id)}
+                          className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"
+                          title="Delete Photo"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+      
+                        <button 
+                          onClick={(e) => handleDownload(e, file.id, file.original_name)}
+                          className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                          title="Download Original"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </button>
+                        
+                        <div className="absolute bottom-3 left-3 right-3 bg-black/40 backdrop-blur-xl p-2 rounded-2xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 z-20 pointer-events-none border border-white/10">
+                          <p className="text-xs truncate w-full text-center font-medium text-white/90" title={file.original_name}>
+                            {file.original_name}
+                          </p>
+                        </div>
 
-                    {/* Move Button */}
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setMovingFileId(file.id); }}
-                      className="absolute top-3 right-24 bg-blue-500/10 dark:bg-black/30 backdrop-blur-xl text-blue-500 dark:text-blue-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-blue-500/30 hover:bg-blue-500 hover:text-white hover:border-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.2)] active:scale-90"
-                      title="Move to Album"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7l-2 2m2-2l2 2m4-4h.01M16 11h.01M16 15h.01M16 19h.01" />
-                      </svg>
-                    </button>
+                        {/* Move Button */}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setMovingFileId(file.id); }}
+                          className="absolute top-3 right-24 bg-blue-500/10 dark:bg-black/30 backdrop-blur-xl text-blue-500 dark:text-blue-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-blue-500/30 hover:bg-blue-500 hover:text-white hover:border-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.2)] active:scale-90"
+                          title="Move to Album"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7l-2 2m2-2l2 2m4-4h.01M16 11h.01M16 15h.01M16 19h.01" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 );
               })}

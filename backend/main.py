@@ -31,6 +31,7 @@ try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE;"))
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS date_taken TIMESTAMP;"))
+        conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;"))
         conn.commit()
 except Exception as e:
     print(f"Migration failed or already applied: {e}")

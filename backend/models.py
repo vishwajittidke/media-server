@@ -63,6 +63,7 @@ class File(Base):
     upload_status = Column(Enum(UploadStatusEnum), default=UploadStatusEnum.PENDING)
     is_favorite = Column(Boolean, default=False)
     date_taken = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)  # Recycle Bin: soft-delete timestamp
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

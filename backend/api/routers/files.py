@@ -101,6 +101,15 @@ async def upload_files(
                     thumbnail_url = cloudinary.CloudinaryImage(upload_res["public_id"]).build_url(
                         secure=True, width=400, crop="limit", fetch_format="webp", quality="auto"
                     )
+                
+                # Clean up local file after successful Cloudinary upload
+                # Render's free tier has ephemeral disk - files vanish on sleep/restart
+                try:
+                    if os.path.exists(final_path):
+                        os.remove(final_path)
+                except Exception:
+                    pass
+                    
             except Exception as e:
                 print(f"Cloudinary upload failed: {e}")
                 
@@ -170,7 +179,7 @@ def list_files(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    query = db.query(DBFile).filter(DBFile.owner_id == current_user.id)
+    query = db.query(DBFile).filter(DBFile.owner_id == current_user.id, DBFile.deleted_at == None)
     if is_favorite and is_favorite.lower() == 'true':
         query = query.filter(DBFile.is_favorite == True)
     elif folder_id:
@@ -181,7 +190,7 @@ def list_files(
     from sqlalchemy.sql.functions import coalesce
     files = query.order_by(coalesce(DBFile.date_taken, DBFile.created_at).desc()).offset(skip).limit(limit).all()
     
-    # Map dynamic URLs if stored on Cloudinary
+    # Map dynamic URLs - always prefer Cloudinary transformation URLs
     result = []
     for f in files:
         f_dict = {
@@ -194,15 +203,19 @@ def list_files(
             "is_favorite": f.is_favorite,
             "storage_path": f.storage_path,
         }
-        if f.storage_path and f.storage_path.startswith("http"):
-            # It's cloudinary
+        # Always use Cloudinary transformation URLs when configured
+        # These are URL-based transforms (free) not API calls
+        if settings.CLOUDINARY_URL and f.sha256:
+            public_id = f"media_server/{f.sha256}"
+            f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
+            f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
+        elif f.storage_path and f.storage_path.startswith("http"):
             public_id = f"media_server/{f.sha256}"
             f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
             f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
         else:
-            # It's local
             f_dict["thumbnail_url"] = f"/thumbnails/{f.stored_name}"
-            f_dict["preview_url"] = f"/previews/{f.stored_name}" if os.path.exists(os.path.join("../previews", f.stored_name)) else f"/uploads/{f.stored_name}"
+            f_dict["preview_url"] = f"/uploads/{f.stored_name}"
         result.append(f_dict)
         
     return result
@@ -237,31 +250,9 @@ def delete_file(
     db_file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.owner_id == current_user.id).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
-        
-    # Delete from Cloudinary if applicable
-    if db_file.storage_path.startswith("http"):
-        try:
-            cloudinary.uploader.destroy(f"media_server/{db_file.sha256}")
-        except Exception as e:
-            print(f"Failed to delete from Cloudinary: {e}")
-    else:
-        # Delete local files
-        try:
-            if os.path.exists(db_file.storage_path):
-                os.remove(db_file.storage_path)
-            
-            thumb_path = os.path.join(settings.THUMBNAILS_DIR, db_file.stored_name)
-            if os.path.exists(thumb_path):
-                os.remove(thumb_path)
-                
-            preview_path = os.path.join(settings.PREVIEWS_DIR, db_file.stored_name)
-            if os.path.exists(preview_path):
-                os.remove(preview_path)
-        except Exception as e:
-            print(f"Failed to delete local files: {e}")
-
-    # Delete from DB
-    db.delete(db_file)
+    
+    # Soft-delete: move to Recycle Bin instead of permanent deletion
+    db_file.deleted_at = datetime.utcnow()
     db.commit()
     
     return None
@@ -325,3 +316,90 @@ def toggle_favorite(
     db_file.is_favorite = not db_file.is_favorite
     db.commit()
     return {"status": "ok", "is_favorite": db_file.is_favorite}
+
+# ==================== RECYCLE BIN ENDPOINTS ====================
+
+@router.get("/trash/list")
+def list_trash(
+    skip: int = 0,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all soft-deleted files in the Recycle Bin."""
+    files = db.query(DBFile).filter(
+        DBFile.owner_id == current_user.id,
+        DBFile.deleted_at != None
+    ).order_by(DBFile.deleted_at.desc()).offset(skip).limit(limit).all()
+    
+    result = []
+    for f in files:
+        f_dict = {
+            "id": f.id,
+            "original_name": f.original_name,
+            "stored_name": f.stored_name,
+            "mime_type": f.mime_type,
+            "deleted_at": f.deleted_at.isoformat() if f.deleted_at else None,
+            "created_at": f.created_at.isoformat(),
+            "storage_path": f.storage_path,
+        }
+        if settings.CLOUDINARY_URL and f.sha256:
+            public_id = f"media_server/{f.sha256}"
+            f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
+        result.append(f_dict)
+    return result
+
+@router.put("/trash/{file_id}/restore")
+def restore_file(
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Restore a file from the Recycle Bin."""
+    db_file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.owner_id == current_user.id, DBFile.deleted_at != None).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found in trash")
+    db_file.deleted_at = None
+    db.commit()
+    return {"status": "ok"}
+
+@router.delete("/trash/{file_id}/permanent")
+def permanent_delete_file(
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a file from the Recycle Bin."""
+    db_file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.owner_id == current_user.id, DBFile.deleted_at != None).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found in trash")
+    
+    # Actually delete from Cloudinary
+    if db_file.storage_path and db_file.storage_path.startswith("http"):
+        try:
+            cloudinary.uploader.destroy(f"media_server/{db_file.sha256}")
+        except Exception as e:
+            print(f"Failed to delete from Cloudinary: {e}")
+    
+    db.delete(db_file)
+    db.commit()
+    return None
+
+@router.delete("/trash/empty")
+def empty_trash(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete ALL files in the Recycle Bin."""
+    trashed_files = db.query(DBFile).filter(DBFile.owner_id == current_user.id, DBFile.deleted_at != None).all()
+    
+    for db_file in trashed_files:
+        if db_file.storage_path and db_file.storage_path.startswith("http"):
+            try:
+                cloudinary.uploader.destroy(f"media_server/{db_file.sha256}")
+            except Exception:
+                pass
+        db.delete(db_file)
+    
+    db.commit()
+    return {"status": "ok", "deleted_count": len(trashed_files)}
