@@ -794,7 +794,15 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                               alt={file.original_name} 
                               className={`absolute inset-0 w-full h-full object-cover transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'scale-90 rounded-2xl opacity-70' : 'opacity-90 group-hover:opacity-100'}`}
                               loading="lazy"
-                              onError={(e) => { (e.target as HTMLImageElement).src = fileUrl; }}
+                              onError={(e) => { 
+                                const img = e.target as HTMLImageElement;
+                                if (!img.dataset.retried) {
+                                  img.dataset.retried = '1';
+                                  img.src = fileUrl;
+                                } else {
+                                  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23334155"/><text x="50" y="54" text-anchor="middle" font-size="28" fill="%2394a3b8">📷</text></svg>');
+                                }
+                              }}
                             />
                             {/* Favorite Button Overlay (hidden in trash) */}
                             {activeTab !== 'trash' && (

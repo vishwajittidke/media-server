@@ -7,9 +7,18 @@ import multer from 'multer';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
+import { v2 as cloudinary } from 'cloudinary';
 
 import { db } from './src/server/db.js';
 import { hashPassword, comparePassword, generateToken, verifyToken } from './src/server/auth.js';
+
+// Initialize Cloudinary from CLOUDINARY_URL env var
+if (process.env.CLOUDINARY_URL) {
+  // The Cloudinary SDK auto-configures from CLOUDINARY_URL env var
+  console.log('✅ Cloudinary configured from CLOUDINARY_URL');
+} else {
+  console.log('⚠️ No CLOUDINARY_URL set - files will only be stored locally (will vanish on Render restart)');
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -37,10 +46,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static assets from uploads/thumbnails/previews
+// Serve static assets from their respective directories
 app.use('/uploads', express.static(UPLOADS_DIR));
-app.use('/thumbnails', express.static(UPLOADS_DIR)); // Fallback serving original as thumbnail
-app.use('/previews', express.static(UPLOADS_DIR));   // Fallback serving original as preview
+app.use('/thumbnails', express.static(THUMBNAILS_DIR));
+app.use('/previews', express.static(PREVIEWS_DIR));
 
 // Middleware to protect routes via JWT (now fully asynchronous)
 const authenticate = async (req: any, res: any, next: any) => {
@@ -267,8 +276,37 @@ const handleUpload = async (req: any, res: any) => {
     const stored_name = `${file_hash}${ext}`;
     const final_path = path.join(UPLOADS_DIR, stored_name);
 
-    // Save locally
+    // Save locally first
     fs.renameSync(file.path, final_path);
+
+    let storage_path = `/uploads/${stored_name}`;
+    let thumbnail_path = `/thumbnails/${stored_name}`;
+
+    // Upload to Cloudinary if configured
+    if (process.env.CLOUDINARY_URL) {
+      try {
+        const uploadRes = await cloudinary.uploader.upload(final_path, {
+          folder: 'media_server',
+          resource_type: 'auto',
+          public_id: file_hash,
+        });
+        storage_path = uploadRes.secure_url;
+        
+        // Generate Cloudinary transformation URLs (URL-based, no API calls)
+        if (file.mimetype && file.mimetype.startsWith('image/')) {
+          thumbnail_path = cloudinary.url(`media_server/${file_hash}`, {
+            secure: true, width: 400, crop: 'limit', fetch_format: 'webp', quality: 'auto'
+          });
+        }
+
+        // Clean up local file after successful Cloudinary upload
+        try { fs.unlinkSync(final_path); } catch (e) {}
+        console.log(`✅ Uploaded to Cloudinary: ${file.originalname}`);
+      } catch (err: any) {
+        console.error(`❌ Cloudinary upload failed for ${file.originalname}:`, err.message);
+        // Keep local file as fallback
+      }
+    }
 
     const fileRecord = {
       id: crypto.randomUUID(),
@@ -280,8 +318,8 @@ const handleUpload = async (req: any, res: any) => {
       mime_type: file.mimetype || 'application/octet-stream',
       file_size: file.size,
       sha256: file_hash,
-      storage_path: `/uploads/${stored_name}`,
-      thumbnail_path: `/thumbnails/${stored_name}`,
+      storage_path,
+      thumbnail_path,
       upload_status: 'COMPLETED' as const,
       is_favorite: false,
       date_taken,
@@ -339,11 +377,27 @@ app.get('/api/v1/files', authenticate, async (req: any, res) => {
   });
 
   const page = files.slice(skip, skip + limit);
-  const responsePage = page.map(f => ({
-    ...f,
-    preview_url: f.storage_path,
-    thumbnail_url: f.thumbnail_path || f.storage_path,
-  }));
+  const responsePage = page.map(f => {
+    let thumbnail_url = f.thumbnail_path || f.storage_path;
+    let preview_url = f.storage_path;
+
+    // If stored on Cloudinary, generate optimized transformation URLs
+    if (f.storage_path && f.storage_path.startsWith('http') && process.env.CLOUDINARY_URL) {
+      const public_id = `media_server/${f.sha256}`;
+      thumbnail_url = cloudinary.url(public_id, {
+        secure: true, width: 400, crop: 'limit', fetch_format: 'webp', quality: 'auto'
+      });
+      preview_url = cloudinary.url(public_id, {
+        secure: true, width: 1920, crop: 'limit', fetch_format: 'webp', quality: 'auto'
+      });
+    }
+
+    return {
+      ...f,
+      preview_url,
+      thumbnail_url,
+    };
+  });
   res.json(responsePage);
 });
 
@@ -361,11 +415,26 @@ app.get('/api/v1/files/trash/list', authenticate, async (req: any, res) => {
   });
 
   const page = files.slice(skip, skip + limit);
-  const responsePage = page.map(f => ({
-    ...f,
-    preview_url: f.storage_path,
-    thumbnail_url: f.thumbnail_path || f.storage_path,
-  }));
+  const responsePage = page.map(f => {
+    let thumbnail_url = f.thumbnail_path || f.storage_path;
+    let preview_url = f.storage_path;
+
+    if (f.storage_path && f.storage_path.startsWith('http') && process.env.CLOUDINARY_URL) {
+      const public_id = `media_server/${f.sha256}`;
+      thumbnail_url = cloudinary.url(public_id, {
+        secure: true, width: 400, crop: 'limit', fetch_format: 'webp', quality: 'auto'
+      });
+      preview_url = cloudinary.url(public_id, {
+        secure: true, width: 1920, crop: 'limit', fetch_format: 'webp', quality: 'auto'
+      });
+    }
+
+    return {
+      ...f,
+      preview_url,
+      thumbnail_url,
+    };
+  });
   res.json(responsePage);
 });
 
