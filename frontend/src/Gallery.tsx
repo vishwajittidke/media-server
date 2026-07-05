@@ -97,7 +97,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         ws.close();
       }
     };
-  }, [token, currentFolderId]);
+  }, [token, currentFolderId, fetchFiles]);
 
   // const fetchFiles = async (folderId: string | null, pageNum: number) => {
   //   try {
@@ -135,60 +135,48 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   //   }
   // };
 
-  const fetchFiles = async (folderId: string | null, pageNum: number) => {
-  const cacheKey = `files_${folderId || 'root'}_${activeTab}_${pageNum}`;
-  
-  // 1. Check for cached data first to save API limits
-  const cachedData = sessionStorage.getItem(cacheKey);
-  if (pageNum === 0 && cachedData) {
-    setFiles(JSON.parse(cachedData));
-    setInitialLoading(false);
-    return; // Exit early: No network request made!
-  }
-
-  try {
-    if (pageNum === 0) setInitialLoading(true);
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
-    let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
-    
-    if (folderId && activeTab !== 'favorites') {
-      url += `&folder_id=${folderId}`;
-    }
-    if (activeTab === 'favorites') {
-      url += `&is_favorite=true`;
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
+  const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
+    try {
+      if (pageNum === 0) setInitialLoading(true);
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
       
-      // 2. Cache the data if it's the first page
-      if (pageNum === 0) {
-        sessionStorage.setItem(cacheKey, JSON.stringify(data));
-        setFiles(data);
-      } else {
-        setFiles(prev => [...prev, ...data]);
+      if (folderId && activeTab !== 'favorites') {
+        url += `&folder_id=${folderId}`;
       }
-      
-      setHasMore(data.length === 50);
-    } else if (response.status === 401) {
-      onLogout();
+      if (activeTab === 'favorites') {
+        url += `&is_favorite=true`;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (pageNum === 0) {
+          setFiles(data);
+        } else {
+          setFiles(prev => [...prev, ...data]);
+        }
+        
+        setHasMore(data.length === 50);
+      } else if (response.status === 401) {
+        onLogout();
+      }
+    } catch (err) {
+      console.error("Failed to fetch files", err);
+    } finally {
+      if (pageNum === 0) setInitialLoading(false);
     }
-  } catch (err) {
-    console.error("Failed to fetch files", err);
-  } finally {
-    if (pageNum === 0) setInitialLoading(false);
-  }
-};
+  }, [activeTab, token, onLogout]);
 
   const fetchFolders = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/folders/`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -259,7 +247,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     setUploading(true);
     setUploadProgress(0);
     
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
     let totalLoaded = 0;
     
     const compressedFiles = await Promise.all(fileList.map(f => compressImage(f)));
@@ -325,7 +313,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/folders/`, {
         method: 'POST',
         headers: {
@@ -353,7 +341,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     e.stopPropagation();
     if (!window.confirm("Delete this album? Photos inside will be moved to 'All Photos'.")) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/folders/${folderId}`, {
         method: 'DELETE',
         headers: {
@@ -370,7 +358,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
 
   const handleMoveFile = async (fileId: string, targetFolderId: string | null) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       
       if (fileId === 'BULK') {
         const response = await fetch(`${apiUrl}/files/bulk/move`, {
@@ -404,7 +392,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
 
   const toggleFavorite = async (fileId: string) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}/favorite`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -425,7 +413,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/auth/change-password`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -462,7 +450,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     if (!window.confirm("WARNING: This will permanently delete your account and ALL your photos. This action cannot be undone. Are you absolutely sure?")) return;
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/auth/me`, {
         method: 'DELETE',
         headers: {
@@ -483,7 +471,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     e.preventDefault();
     e.stopPropagation();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/files/download/${fileId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -515,7 +503,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     if (!window.confirm("Are you sure you want to delete this photo?")) return;
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}`, {
         method: 'DELETE',
         headers: {
