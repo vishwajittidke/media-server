@@ -618,7 +618,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
           </div>
           
           {/* Tabs */}
-          <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-center px-4 w-full sm:w-auto">
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-start sm:justify-center px-4 w-full sm:w-auto">
             <button 
               onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); setIsSelectMode(false); }}
               className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
