@@ -56,6 +56,14 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [gridScale, setGridScale] = useState<number>(() => {
     return parseInt(localStorage.getItem('gallery_grid_scale') || '5', 10);
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
@@ -73,6 +81,10 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         if (activeTab === 'favorites') {
           url += `&is_favorite=true`;
         }
+      }
+
+      if (debouncedSearch && activeTab !== 'trash') {
+        url += `&search=${encodeURIComponent(debouncedSearch)}`;
       }
 
       const response = await fetch(url, {
@@ -99,7 +111,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     } finally {
       if (pageNum === 0) setInitialLoading(false);
     }
-  }, [activeTab, token, onLogout]);
+  }, [activeTab, token, onLogout, debouncedSearch]);
 
   useEffect(() => {
     setPage(0);
@@ -110,7 +122,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     }
     // Also fetch folders if we need them for the Move modal
     if (folders.length === 0) fetchFolders();
-  }, [currentFolderId, activeTab]);
+  }, [currentFolderId, activeTab, debouncedSearch]);
 
   useEffect(() => {
     if (page > 0) {
@@ -623,6 +635,27 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               </svg>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Gallery</h1>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="flex-1 max-w-md mx-4 hidden md:block">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search photos..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white/10 border border-white/20 text-white text-sm rounded-full focus:ring-white/50 focus:border-white/50 block pl-10 p-2 backdrop-blur-md placeholder-white/50 transition-all focus:bg-white/20"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute inset-y-0 right-0 pr-3 flex items-center text-white/50 hover:text-white">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">

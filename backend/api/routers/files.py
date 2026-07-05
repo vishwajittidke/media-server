@@ -265,6 +265,7 @@ async def upload_files(
 def list_files(
     folder_id: Optional[str] = None,
     is_favorite: Optional[str] = None,
+    search: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
     current_user: User = Depends(get_current_user),
@@ -275,12 +276,15 @@ def list_files(
         DBFile.deleted_at == None,
     )
 
-    if is_favorite and is_favorite.lower() == "true":
-        query = query.filter(DBFile.is_favorite == True)
-    elif folder_id:
-        query = query.filter(DBFile.folder_id == folder_id)
+    if search:
+        query = query.filter(DBFile.original_name.ilike(f"%{search}%"))
     else:
-        query = query.filter(DBFile.folder_id == None)
+        if is_favorite and is_favorite.lower() == "true":
+            query = query.filter(DBFile.is_favorite == True)
+        elif folder_id:
+            query = query.filter(DBFile.folder_id == folder_id)
+        else:
+            query = query.filter(DBFile.folder_id == None)
 
     from sqlalchemy.sql.functions import coalesce
     files = (
