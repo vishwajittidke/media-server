@@ -199,6 +199,10 @@ def list_files(
             public_id = f"media_server/{f.sha256}"
             f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
             f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
+        else:
+            # It's local
+            f_dict["thumbnail_url"] = f"/thumbnails/{f.stored_name}"
+            f_dict["preview_url"] = f"/previews/{f.stored_name}" if os.path.exists(os.path.join("../previews", f.stored_name)) else f"/uploads/{f.stored_name}"
         result.append(f_dict)
         
     return result

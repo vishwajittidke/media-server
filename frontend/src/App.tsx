@@ -15,7 +15,7 @@ function App() {
     formData.append("password", password);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: {

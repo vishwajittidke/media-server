@@ -680,15 +680,21 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
               
               {!initialLoading && files.map((file, idx) => {
                 const isImage = file.mime_type && file.mime_type.startsWith('image/');
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+                const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
                 const baseUrl = apiUrl.replace('/api/v1', '');
                 
                 const fileUrl = (file.storage_path || '').startsWith('http') 
                   ? (file.storage_path || '')
                   : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;
                   
-                const previewUrl = isImage ? (file.preview_url || fileUrl) : fileUrl;
-                const thumbnailUrl = isImage ? (file.thumbnail_url || fileUrl) : fileUrl;
+                const resolveUrl = (url?: string) => {
+                  if (!url) return fileUrl;
+                  if (url.startsWith('http')) return url;
+                  return `${baseUrl}${url}`;
+                };
+
+                const previewUrl = isImage ? resolveUrl(file.preview_url) : fileUrl;
+                const thumbnailUrl = isImage ? resolveUrl(file.thumbnail_url) : fileUrl;
                 const dim = dimensions[file.id] || { width: 1024, height: 768 }; 
                 
                 return (
