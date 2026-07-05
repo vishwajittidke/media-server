@@ -21,10 +21,12 @@ from core.websocket import manager
 from core.limiter import limiter
 import json
 
-# Initialize Cloudinary SDK from environment variable
 if settings.CLOUDINARY_URL:
     import urllib.parse
-    parsed = urllib.parse.urlparse(settings.CLOUDINARY_URL)
+    url = settings.CLOUDINARY_URL
+    if not url.startswith("cloudinary://"):
+        url = "cloudinary://" + url
+    parsed = urllib.parse.urlparse(url)
     cloudinary.config(
         cloud_name=parsed.hostname,
         api_key=parsed.username,
@@ -118,7 +120,6 @@ async def upload_files(
                     )
                 
                 # Clean up local file after successful Cloudinary upload
-                # Render's free tier has ephemeral disk - files vanish on sleep/restart
                 try:
                     if os.path.exists(final_path):
                         os.remove(final_path)
@@ -126,7 +127,9 @@ async def upload_files(
                     pass
                     
             except Exception as e:
-                print(f"Cloudinary upload failed: {e}")
+                print(f"Cloudinary upload failed with error: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 
         if not cloudinary_success:
             # Fallback local generation
