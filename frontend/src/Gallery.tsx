@@ -1898,7 +1898,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                 
                 const fileUrl = (file.storage_path || '').startsWith('http') [cite: 3]
                   ? (file.storage_path || '')[cite: 3]
-                  : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;[cite: 3]
+                  : `${baseUrl}/static/${file.stored_name}`;[cite: 3]
                   
                 const resolveUrl = (url?: string) => {[cite: 3]
                   if (!url) return fileUrl;[cite: 3]
