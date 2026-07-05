@@ -1013,7 +1013,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                   </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
             
             {!initialLoading && files.length > 0 && hasMore && (
               <div className="w-full flex justify-center mt-10 pb-8">
