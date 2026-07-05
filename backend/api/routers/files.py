@@ -83,20 +83,33 @@ def get_file_hash(data: bytes) -> str:
 def resolve_file_urls(f: DBFile):
     """
     Return (thumbnail_url, preview_url) for a file.
-    If stored on Supabase (storage_path starts with http) use transform URLs.
-    Otherwise fall back to local static paths.
+    
+    IMPORTANT: Always try Supabase first if configured, even for old files
+    whose storage_path still points to /uploads/... (local disk).
+    This handles the case where files were uploaded before Supabase was added.
     """
-    if f.storage_path and f.storage_path.startswith("http"):
-        object_path = f"photos/{f.sha256}{f.extension}"
-        if _sb_configured():
-            thumbnail_url = _sb_transform_url(object_path, width=400, quality=70)
-            preview_url   = _sb_transform_url(object_path, width=1200, quality=70)
+    object_path = f"photos/{f.sha256}{f.extension}"
+    
+    if _sb_configured():
+        # Always generate Supabase transform URLs if Supabase is configured
+        # The file may or may not be in Supabase — the transform URL will
+        # return 404 if it's not, which the frontend handles gracefully
+        thumbnail_url = _sb_transform_url(object_path, width=400, quality=70)
+        preview_url   = _sb_transform_url(object_path, width=1200, quality=70)
+        
+        # If storage_path is still a local path, serve the Supabase public URL as fallback
+        if f.storage_path and f.storage_path.startswith("http"):
+            pass  # Already on Supabase, transform URLs will work
         else:
-            thumbnail_url = f.storage_path
-            preview_url   = f.storage_path
+            # Old file — use the public URL directly (no transform) as preview fallback
+            preview_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{settings.SUPABASE_BUCKET}/{object_path}"
+    elif f.storage_path and f.storage_path.startswith("http"):
+        thumbnail_url = f.storage_path
+        preview_url   = f.storage_path
     else:
         thumbnail_url = f.thumbnail_path or f"/uploads/{f.stored_name}"
         preview_url   = f"/previews/{f.stored_name}"
+    
     return thumbnail_url, preview_url
 
 
@@ -514,3 +527,36 @@ def empty_trash(
 
     db.commit()
     return {"status": "ok", "deleted_count": len(trashed)}
+
+
+# ── Cleanup orphaned files (old local-path records) ──────────────────────────
+
+@router.delete("/cleanup/orphaned")
+def cleanup_orphaned_files(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Remove DB records for files that were stored on local disk (not Supabase)
+    and whose local files no longer exist (Render wiped them).
+    This cleans up the camera-icon ghost entries.
+    """
+    orphaned = db.query(DBFile).filter(
+        DBFile.owner_id == current_user.id,
+        ~DBFile.storage_path.startswith("http"),  # local path, not Supabase
+    ).all()
+
+    deleted_count = 0
+    for f in orphaned:
+        local_path = os.path.join(settings.UPLOADS_DIR, f.stored_name)
+        if not os.path.exists(local_path):
+            db.delete(f)
+            deleted_count += 1
+
+    db.commit()
+    return {
+        "status": "ok",
+        "orphaned_found": len(orphaned),
+        "deleted": deleted_count,
+        "message": f"Removed {deleted_count} orphaned file records. Please re-upload these photos.",
+    }
