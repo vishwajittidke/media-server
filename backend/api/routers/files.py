@@ -21,6 +21,17 @@ from core.websocket import manager
 from core.limiter import limiter
 import json
 
+# Initialize Cloudinary SDK from environment variable
+if settings.CLOUDINARY_URL:
+    import urllib.parse
+    parsed = urllib.parse.urlparse(settings.CLOUDINARY_URL)
+    cloudinary.config(
+        cloud_name=parsed.hostname,
+        api_key=parsed.username,
+        api_secret=parsed.password,
+        secure=True
+    )
+
 router = APIRouter()
 
 def get_file_hash(filepath: str) -> str:
@@ -64,8 +75,12 @@ async def upload_files(
         mime_type, _ = mimetypes.guess_type(original_name)
         mime_type = mime_type or "application/octet-stream"
 
-        # Check for duplicates using sha256
-        existing_file = db.query(DBFile).filter(DBFile.sha256 == file_hash, DBFile.owner_id == current_user.id).first()
+        # Check for duplicates using sha256 (exclude soft-deleted files so re-uploads work after trashing)
+        existing_file = db.query(DBFile).filter(
+            DBFile.sha256 == file_hash, 
+            DBFile.owner_id == current_user.id,
+            DBFile.deleted_at == None
+        ).first()
         if existing_file:
             os.remove(temp_path)
             uploaded_files_info.append({"filename": original_name, "status": "duplicate", "id": existing_file.id})
