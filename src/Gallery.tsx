@@ -623,26 +623,26 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
           <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-start sm:justify-center px-4 w-full sm:w-auto">
             <button 
               onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); setIsSelectMode(false); }}
-              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
+              className={`flex-shrink-0 flex items-center px-4 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
               All Photos
             </button>
             <button 
               onClick={() => { setActiveTab('albums'); setIsSelectMode(false); }}
-              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'albums' ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
+              className={`flex-shrink-0 flex items-center px-4 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'albums' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
               Albums
             </button>
             <button 
               onClick={() => { setActiveTab('favorites'); setCurrentFolderId(null); setIsSelectMode(false); }}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'favorites' ? 'bg-red-500/10 text-red-500 shadow-lg shadow-red-500/10 scale-105 border border-red-500/20' : 'bg-white/5 text-red-400/70 hover:bg-red-500/10 hover:text-red-400'}`}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'favorites' ? 'bg-red-500/20 text-red-400 shadow-lg shadow-red-500/10' : 'bg-white/5 text-red-400/70 hover:bg-red-500/10 hover:text-red-400'}`}
             >
               <svg className="w-4 h-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
               Favorites
             </button>
             <button 
               onClick={() => { setActiveTab('trash'); setCurrentFolderId(null); setIsSelectMode(false); }}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'trash' ? 'bg-orange-500/10 text-orange-500 shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/20' : 'bg-white/5 text-orange-400/70 hover:bg-orange-500/10 hover:text-orange-400'}`}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'trash' ? 'bg-orange-500/20 text-orange-400 shadow-lg shadow-orange-500/10' : 'bg-white/5 text-orange-400/70 hover:bg-orange-500/10 hover:text-orange-400'}`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
               Trash
