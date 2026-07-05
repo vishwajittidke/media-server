@@ -50,6 +50,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState<Record<string, {width: number, height: number}>>({});
+  const [layout, setLayout] = useState<'grid' | 'masonry'>(() => {
+    return (localStorage.getItem('gallery_layout') as 'grid' | 'masonry') || 'grid';
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
@@ -617,6 +620,26 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             >
               <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
+            {/* Layout Toggle */}
+            <button 
+              onClick={() => {
+                const next = layout === 'grid' ? 'masonry' : 'grid';
+                setLayout(next);
+                localStorage.setItem('gallery_layout', next);
+              }}
+              className="premium-btn !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"
+              title={layout === 'grid' ? 'Switch to Masonry' : 'Switch to Grid'}
+            >
+              {layout === 'grid' ? (
+                <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h7v5H3zM14 3h7v8H14zM3 10h7v11H3zM14 13h7v8H14z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h7v7H3zM14 3h7v7H14zM3 14h7v7H3zM14 14h7v7H14z" />
+                </svg>
+              )}
+            </button>
           </div>
           
           {/* Tabs */}
@@ -733,7 +756,13 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                 </button>
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+            <div 
+              className={layout === 'masonry' 
+                ? 'columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-4 space-y-4 animate-fade-in-up' 
+                : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up'
+              } 
+              style={{ animationDelay: '0.1s' }}
+            >
               
               {initialLoading && Array.from({ length: 12 }).map((_, i) => (
                 <div 
@@ -776,7 +805,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                 return (
                   <div 
                     key={file.id} 
-                    className="group aspect-square glass-panel rounded-[28px] flex flex-col items-center justify-center relative transition-all duration-500 hover:scale-[1.02] cursor-pointer overflow-hidden animate-fade-in-up"
+                    className={`group glass-panel rounded-[28px] flex flex-col items-center justify-center relative transition-all duration-500 hover:scale-[1.02] cursor-pointer overflow-hidden animate-fade-in-up ${layout === 'masonry' ? 'break-inside-avoid mb-4' : 'aspect-square'}`}
                     style={{ animationDelay: `${(idx % 10) * 0.05}s` }}
                   >
                     {isImage ? (
@@ -794,7 +823,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                               onLoad={(e) => handleImageLoad(e, file.id)}
                               src={thumbnailUrl} 
                               alt={file.original_name} 
-                              className={`absolute inset-0 w-full h-full object-cover transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'scale-90 rounded-2xl opacity-70' : 'opacity-90 group-hover:opacity-100'}`}
+                              className={`${layout === 'masonry' ? 'w-full h-auto' : 'absolute inset-0 w-full h-full object-cover'} transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'scale-90 rounded-2xl opacity-70' : 'opacity-90 group-hover:opacity-100'}`}
                               loading="lazy"
                               onError={(e) => { 
                                 const img = e.target as HTMLImageElement;
