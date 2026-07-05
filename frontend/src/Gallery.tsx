@@ -2,6 +2,8 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Gallery as PhotoSwipeGallery, Item } from 'react-photoswipe-gallery';
 import 'photoswipe/dist/photoswipe.css';
 import exifr from 'exifr';
+import { motion, AnimatePresence } from 'framer-motion';
+import Tilt from 'react-parallax-tilt';
 
 interface FileItem {
   id: string;
@@ -50,6 +52,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [dimensions, setDimensions] = useState<Record<string, {width: number, height: number}>>({});
   const [layout, setLayout] = useState<'grid' | 'masonry'>(() => {
     return (localStorage.getItem('gallery_layout') as 'grid' | 'masonry') || 'grid';
+  });
+  const [gridScale, setGridScale] = useState<number>(() => {
+    return parseInt(localStorage.getItem('gallery_grid_scale') || '5', 10);
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -579,6 +584,36 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         </div>
       )}
       <div className="relative z-10 max-w-[1400px] mx-auto px-4 py-8">
+        {/* Dynamic Island Upload Progress */}
+        <AnimatePresence>
+          {uploading && (
+            <motion.div 
+              initial={{ y: -100, scale: 0.8, opacity: 0 }}
+              animate={{ y: 0, scale: 1, opacity: 1 }}
+              exit={{ y: -100, scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-black/90 backdrop-blur-2xl border border-white/20 shadow-2xl rounded-full px-6 py-3 flex items-center gap-4 text-white overflow-hidden"
+              style={{ minWidth: '300px' }}
+            >
+              <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin"></div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold mb-1">Uploading...</div>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-white rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${uploadProgress || 0}%` }}
+                    transition={{ ease: "linear", duration: 0.2 }}
+                  />
+                </div>
+              </div>
+              <div className="text-xs font-mono text-white/60 w-8 text-right">
+                {uploadProgress ? Math.round(uploadProgress) : 0}%
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 mb-6 sm:mb-10 glass-panel p-4 sm:p-3 sm:px-6 rounded-[2rem] sm:rounded-full animate-fade-in-up">
           <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-center sm:justify-start">
@@ -618,6 +653,26 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             >
               <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
+            {/* Grid Zoom */}
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10" title="Grid Size">
+              <button onClick={() => setGridScale(Math.max(2, gridScale - 1))} className="text-white/50 hover:text-white transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" /></svg>
+              </button>
+              <input 
+                type="range" min="2" max="10" step="1" 
+                value={gridScale} 
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  setGridScale(val);
+                  localStorage.setItem('gallery_grid_scale', val.toString());
+                }}
+                className="w-20 accent-white/80 cursor-pointer h-1 bg-white/20 rounded-lg appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+              />
+              <button onClick={() => setGridScale(Math.min(10, gridScale + 1))} className="text-white/50 hover:text-white transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+              </button>
+            </div>
+            
             {/* Layout Toggle */}
             <button 
               onClick={() => {
@@ -754,12 +809,19 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                 </button>
               </div>
             )}
-            <div 
+            <motion.div 
+              layout
               className={layout === 'masonry' 
-                ? 'columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-4 space-y-4 animate-fade-in-up' 
-                : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up'
+                ? 'gap-4 space-y-4 animate-fade-in-up' 
+                : 'grid gap-4 sm:gap-6 animate-fade-in-up'
               } 
-              style={{ animationDelay: '0.1s' }}
+              style={{ 
+                animationDelay: '0.1s',
+                ...(layout === 'masonry' 
+                  ? { columnCount: gridScale } 
+                  : { gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(100, 400 - (gridScale * 30))}px, 1fr))` }
+                )
+              }}
             >
               
               {initialLoading && Array.from({ length: 12 }).map((_, i) => (
@@ -801,9 +863,14 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                 const dim = dimensions[file.id] || { width: 1024, height: 768 }; 
                 
                 return (
-                  <div 
+                  <motion.div 
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
                     key={file.id} 
-                    className={`group glass-panel rounded-[28px] flex flex-col items-center justify-center relative transition-all duration-500 hover:scale-[1.02] cursor-pointer overflow-hidden animate-fade-in-up ${layout === 'masonry' ? 'break-inside-avoid mb-4' : 'aspect-square'}`}
+                    className={`group glass-panel rounded-[28px] flex flex-col items-center justify-center relative transition-all duration-500 cursor-pointer overflow-hidden ${layout === 'masonry' ? 'break-inside-avoid mb-4' : 'aspect-square'}`}
                     style={{ animationDelay: `${(idx % 10) * 0.05}s` }}
                   >
                     {isImage ? (
@@ -814,7 +881,17 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                         height={Math.round((dim.height / dim.width) * 1920)}
                       >
                         {({ ref, open }) => (
-                          <div className="relative w-full h-full">
+                          <Tilt 
+                            className="relative w-full h-full"
+                            glareEnable={true} 
+                            glareMaxOpacity={0.3} 
+                            glareColor="#ffffff" 
+                            glarePosition="all" 
+                            scale={1.02} 
+                            transitionSpeed={600} 
+                            tiltMaxAngleX={8} 
+                            tiltMaxAngleY={8}
+                          >
                             <img 
                               ref={ref as any} 
                               onClick={isSelectMode ? (e) => { e.stopPropagation(); toggleSelection(file.id); } : open} 
@@ -848,7 +925,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                                 {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}
                               </div>
                             )}
-                          </div>
+                          </Tilt>
                         )}
                       </Item>
                     ) : (
@@ -933,7 +1010,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                         </button>
                       </>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
