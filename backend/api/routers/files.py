@@ -95,7 +95,7 @@ def resolve_file_urls(f: DBFile):
         # The file may or may not be in Supabase — the transform URL will
         # return 404 if it's not, which the frontend handles gracefully
         thumbnail_url = _sb_transform_url(object_path, width=400, quality=70)
-        preview_url   = _sb_transform_url(object_path, width=1200, quality=70)
+        preview_url   = _sb_transform_url(object_path, width=1920, quality=75)
         
         # If storage_path is still a local path, serve the Supabase public URL as fallback
         if f.storage_path and f.storage_path.startswith("http"):

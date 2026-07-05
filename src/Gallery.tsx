@@ -812,8 +812,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                       <Item
                         original={previewUrl}
                         thumbnail={thumbnailUrl}
-                        width={dim.width > 2048 ? 2048 : dim.width}
-                        height={dim.width > 2048 ? Math.round((dim.height / dim.width) * 2048) : dim.height}
+                        width={1920}
+                        height={Math.round((dim.height / dim.width) * 1920)}
                       >
                         {({ ref, open }) => (
                           <div className="relative w-full h-full">
