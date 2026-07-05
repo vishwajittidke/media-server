@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Gallery as PhotoSwipeGallery, Item } from 'react-photoswipe-gallery';
 import 'photoswipe/dist/photoswipe.css';
 import exifr from 'exifr';
@@ -50,91 +50,6 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [dimensions, setDimensions] = useState<Record<string, {width: number, height: number}>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setPage(0);
-    setHasMore(true);
-    fetchFiles(currentFolderId, 0);
-    if (activeTab === 'albums' && currentFolderId === null) {
-      fetchFolders();
-    }
-    // Also fetch folders if we need them for the Move modal
-    if (folders.length === 0) fetchFolders();
-  }, [currentFolderId, activeTab]);
-
-  useEffect(() => {
-    if (page > 0) {
-      fetchFiles(currentFolderId, page);
-    }
-  }, [page]);
-
-  useEffect(() => {
-    let ws: WebSocket;
-    let reconnectTimer: number | ReturnType<typeof setTimeout>;
-
-    const connectWs = () => {
-      const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);
-      ws = new WebSocket(`${wsUrl}/${token}`);
-      
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "FILE_UPLOADED") {
-          setPage(0);
-          fetchFiles(currentFolderId, 0);
-        }
-      };
-
-      ws.onclose = () => {
-        reconnectTimer = setTimeout(connectWs, 3000);
-      };
-    };
-
-    connectWs();
-
-    return () => {
-      
-      if (ws) {
-        ws.onclose = null;
-        ws.close();
-      }
-    };
-  }, [token, currentFolderId, fetchFiles]);
-
-  // const fetchFiles = async (folderId: string | null, pageNum: number) => {
-  //   try {
-  //     if (pageNum === 0) setInitialLoading(true);
-  //     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-  //     let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
-  //     if (folderId && activeTab !== 'favorites') {
-  //       url += `&folder_id=${folderId}`;
-  //     }
-  //     if (activeTab === 'favorites') {
-  //       url += `&is_favorite=true`;
-  //     }
-  //     const response = await fetch(url, {
-  //       headers: {
-  //         'Authorization': `Bearer ${token}`
-  //       }
-  //     });
-  //     if (response.ok) {
-  //       const data = await response.json();
-  //       if (data.length < 50) setHasMore(false);
-  //       else setHasMore(true);
-        
-  //       if (pageNum === 0) {
-  //         setFiles(data);
-  //       } else {
-  //         setFiles(prev => [...prev, ...data]);
-  //       }
-  //     } else if (response.status === 401) {
-  //       onLogout();
-  //     }
-  //   } catch (err) {
-  //     console.error("Failed to fetch files", err);
-  //   } finally {
-  //     if (pageNum === 0) setInitialLoading(false);
-  //   }
-  // };
-
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
     try {
       if (pageNum === 0) setInitialLoading(true);
@@ -173,6 +88,54 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       if (pageNum === 0) setInitialLoading(false);
     }
   }, [activeTab, token, onLogout]);
+
+  useEffect(() => {
+    setPage(0);
+    setHasMore(true);
+    fetchFiles(currentFolderId, 0);
+    if (activeTab === 'albums' && currentFolderId === null) {
+      fetchFolders();
+    }
+    // Also fetch folders if we need them for the Move modal
+    if (folders.length === 0) fetchFolders();
+  }, [currentFolderId, activeTab]);
+
+  useEffect(() => {
+    if (page > 0) {
+      fetchFiles(currentFolderId, page);
+    }
+  }, [page]);
+
+  useEffect(() => {
+    let ws: WebSocket;
+    
+    const connectWs = () => {
+      const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);
+      ws = new WebSocket(`${wsUrl}/${token}`);
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "FILE_UPLOADED") {
+          setPage(0);
+          fetchFiles(currentFolderId, 0);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWs, 3000);
+      };
+    };
+
+    connectWs();
+
+    return () => {
+      
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [token, currentFolderId, fetchFiles]);
 
   const fetchFolders = async () => {
     try {
