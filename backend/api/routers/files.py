@@ -1,18 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile, Form, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import os
 import hashlib
-from datetime import datetime
+import io
 import mimetypes
+import requests
+from datetime import datetime
 from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
 from pydantic import BaseModel
-import urllib.parse
 
 from core.config import settings
 from models import User, File as DBFile, UploadStatusEnum, Folder
@@ -20,61 +18,87 @@ from api.deps import get_db, get_current_user
 from core.websocket import manager
 from core.limiter import limiter
 
-# ── Initialize Cloudinary SDK ───────────────────────────────────────────────
-# Cloudinary SDK auto-reads CLOUDINARY_URL if it starts with cloudinary://
-# We normalise the URL so both formats work:
-#   cloudinary://api_key:api_secret@cloud_name
-#   api_key:api_secret@cloud_name  (missing scheme)
-if settings.CLOUDINARY_URL:
-    url = settings.CLOUDINARY_URL.strip()
-    if not url.startswith("cloudinary://"):
-        url = "cloudinary://" + url
-    try:
-        parsed = urllib.parse.urlparse(url)
-        cloudinary.config(
-            cloud_name=parsed.hostname,
-            api_key=parsed.username,
-            api_secret=parsed.password,
-            secure=True,
-        )
-        print(f"✅ Cloudinary configured: cloud={parsed.hostname}")
-    except Exception as e:
-        print(f"❌ Cloudinary config error: {e}")
-else:
-    print("⚠️  No CLOUDINARY_URL — uploads will be stored on ephemeral local disk only")
-
 router = APIRouter()
 
+# ── Supabase Storage helpers ─────────────────────────────────────────────────
 
-def get_file_hash(filepath: str) -> str:
-    sha256_hash = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        for byte_block in iter(lambda: f.read(65536), b""):
-            sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest()
+def _sb_headers():
+    """Auth headers for Supabase Storage REST API."""
+    return {
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
+        "apikey": settings.SUPABASE_SERVICE_KEY,
+    }
 
+def _sb_configured() -> bool:
+    return bool(settings.SUPABASE_URL and settings.SUPABASE_SERVICE_KEY)
 
-def build_cloudinary_urls(sha256: str):
-    """Return (thumbnail_url, preview_url) for a Cloudinary-stored file."""
-    public_id = f"media_server/{sha256}"
-    thumbnail_url = cloudinary.CloudinaryImage(public_id).build_url(
-        secure=True, width=400, crop="limit", fetch_format="webp", quality="auto"
+def _sb_upload(object_path: str, data: bytes, content_type: str) -> str:
+    """
+    Upload bytes to Supabase Storage.
+    Returns the public URL of the uploaded file.
+    Raises on failure.
+    """
+    bucket = settings.SUPABASE_BUCKET
+    url = f"{settings.SUPABASE_URL}/storage/v1/object/{bucket}/{object_path}"
+    headers = {
+        **_sb_headers(),
+        "Content-Type": content_type,
+        "x-upsert": "true",   # overwrite if already exists (dedup safe)
+    }
+    resp = requests.post(url, headers=headers, data=data, timeout=120)
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Supabase upload failed {resp.status_code}: {resp.text}")
+    # Return the public URL
+    return f"{settings.SUPABASE_URL}/storage/v1/object/public/{bucket}/{object_path}"
+
+def _sb_delete(object_path: str):
+    """Delete a file from Supabase Storage (best-effort)."""
+    bucket = settings.SUPABASE_BUCKET
+    url = f"{settings.SUPABASE_URL}/storage/v1/object/{bucket}/{object_path}"
+    try:
+        requests.delete(url, headers=_sb_headers(), timeout=30)
+    except Exception as e:
+        print(f"Supabase delete failed: {e}")
+
+def _sb_transform_url(object_path: str, width: int, quality: int = 80) -> str:
+    """
+    Build a Supabase image transformation URL (no extra API calls — CDN-based).
+    Resizes the image to the given width and sets quality.
+    """
+    bucket = settings.SUPABASE_BUCKET
+    return (
+        f"{settings.SUPABASE_URL}/storage/v1/render/image/public/{bucket}/{object_path}"
+        f"?width={width}&quality={quality}&resize=contain"
     )
-    preview_url = cloudinary.CloudinaryImage(public_id).build_url(
-        secure=True, width=1920, crop="limit", fetch_format="webp", quality="auto"
-    )
-    return thumbnail_url, preview_url
 
+
+# ── File hash helper ─────────────────────────────────────────────────────────
+
+def get_file_hash(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+# ── URL resolution ───────────────────────────────────────────────────────────
 
 def resolve_file_urls(f: DBFile):
-    """Given a DBFile ORM object, return thumbnail_url and preview_url."""
+    """
+    Return (thumbnail_url, preview_url) for a file.
+    If stored on Supabase (storage_path starts with http) use transform URLs.
+    Otherwise fall back to local static paths.
+    """
     if f.storage_path and f.storage_path.startswith("http"):
-        # File is on Cloudinary – generate transformation URLs (no API call)
-        thumbnail_url, preview_url = build_cloudinary_urls(f.sha256)
+        # Extract the object path from the public URL
+        # URL format: {SUPABASE_URL}/storage/v1/object/public/{bucket}/{object_path}
+        object_path = f"photos/{f.sha256}{f.extension}"
+        if _sb_configured():
+            thumbnail_url = _sb_transform_url(object_path, width=400, quality=80)
+            preview_url   = _sb_transform_url(object_path, width=1920, quality=85)
+        else:
+            thumbnail_url = f.storage_path
+            preview_url   = f.storage_path
     else:
-        # File is on local disk (ephemeral on Render)
         thumbnail_url = f.thumbnail_path or f"/uploads/{f.stored_name}"
-        preview_url = f"/previews/{f.stored_name}"
+        preview_url   = f"/previews/{f.stored_name}"
     return thumbnail_url, preview_url
 
 
@@ -85,8 +109,8 @@ def resolve_file_urls(f: DBFile):
 async def upload_files(
     request: Request,
     files: List[UploadFile] = FastAPIFile(...),
-    folder_id: str = Form(None),
-    date_taken: str = Form(None),
+    folder_id: Optional[str] = Form(None),
+    date_taken: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -111,15 +135,10 @@ async def upload_files(
             if not folder:
                 folder_id = None
 
-        # Write to a temp file to hash it
-        temp_path = os.path.join(settings.UPLOADS_DIR, f"temp_{original_name}")
         try:
-            with open(temp_path, "wb") as buffer:
-                content = await file.read()
-                buffer.write(content)
-
-            file_hash = get_file_hash(temp_path)
-            file_size = os.path.getsize(temp_path)
+            raw_bytes = await file.read()
+            file_hash = get_file_hash(raw_bytes)
+            file_size = len(raw_bytes)
 
             # Duplicate check (ignores soft-deleted records)
             existing = db.query(DBFile).filter(
@@ -128,62 +147,58 @@ async def upload_files(
                 DBFile.deleted_at == None,
             ).first()
             if existing:
-                os.remove(temp_path)
                 uploaded_files_info.append({"filename": original_name, "status": "duplicate", "id": existing.id})
                 continue
 
             stored_name = f"{file_hash}{ext}"
-            final_path = os.path.join(settings.UPLOADS_DIR, stored_name)
-            os.rename(temp_path, final_path)
+            object_path = f"photos/{stored_name}"   # path inside Supabase bucket
 
-            storage_path = f"/uploads/{stored_name}"
+            storage_path  = f"/uploads/{stored_name}"   # local fallback default
             thumbnail_path = f"/thumbnails/{stored_name}"
-            cloudinary_success = False
+            supabase_ok = False
 
-            # ── Upload to Cloudinary ──────────────────────────────────────
-            if settings.CLOUDINARY_URL:
+            # ── Upload to Supabase Storage ────────────────────────────────
+            if _sb_configured():
                 try:
-                    upload_res = cloudinary.uploader.upload(
-                        final_path,
-                        folder="media_server",
-                        resource_type="auto",
-                        public_id=file_hash,
-                    )
-                    storage_path = upload_res["secure_url"]
-                    cloudinary_success = True
+                    storage_path = _sb_upload(object_path, raw_bytes, mime_type)
+                    supabase_ok = True
 
                     if mime_type.startswith("image/"):
-                        thumbnail_path, _ = build_cloudinary_urls(file_hash)
+                        thumbnail_path = _sb_transform_url(object_path, width=400, quality=80)
 
-                    # Delete local copy – Render's disk is ephemeral anyway
-                    try:
-                        os.remove(final_path)
-                    except Exception:
-                        pass
-
-                    print(f"✅ Cloudinary upload OK: {original_name}")
+                    print(f"✅ Supabase upload OK: {original_name} → {object_path}")
                 except Exception as e:
                     import traceback
-                    print(f"❌ Cloudinary upload failed: {e}")
+                    print(f"❌ Supabase upload failed for {original_name}: {e}")
                     traceback.print_exc()
 
-            # ── Local thumbnail + preview (fallback) ──────────────────────
-            if not cloudinary_success and mime_type.startswith("image/") and os.path.exists(final_path):
-                try:
-                    with Image.open(final_path) as img:
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        thumb = img.copy()
-                        thumb.thumbnail((400, 400))
-                        thumb.save(os.path.join(settings.THUMBNAILS_DIR, stored_name), format="JPEG", quality=85)
+            # ── Local fallback (saves to disk if Supabase not configured) ──
+            if not supabase_ok:
+                final_path = os.path.join(settings.UPLOADS_DIR, stored_name)
+                with open(final_path, "wb") as fout:
+                    fout.write(raw_bytes)
 
-                    with Image.open(final_path) as img:
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        img.thumbnail((1920, 1080))
-                        img.save(os.path.join(settings.PREVIEWS_DIR, stored_name), format="JPEG", quality=85)
-                except Exception as e:
-                    print(f"Image processing error: {e}")
+                if mime_type.startswith("image/"):
+                    try:
+                        with Image.open(io.BytesIO(raw_bytes)) as img:
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                            thumb = img.copy()
+                            thumb.thumbnail((400, 400))
+                            thumb.save(
+                                os.path.join(settings.THUMBNAILS_DIR, stored_name),
+                                format="JPEG", quality=85,
+                            )
+                        with Image.open(io.BytesIO(raw_bytes)) as img:
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                            img.thumbnail((1920, 1080))
+                            img.save(
+                                os.path.join(settings.PREVIEWS_DIR, stored_name),
+                                format="JPEG", quality=85,
+                            )
+                    except Exception as e:
+                        print(f"Local thumbnail error: {e}")
 
             # ── Parse date_taken ──────────────────────────────────────────
             parsed_date = None
@@ -193,7 +208,7 @@ async def upload_files(
                 except Exception:
                     pass
 
-            # ── Save to DB ────────────────────────────────────────────────
+            # ── Save record to database ───────────────────────────────────
             db_file = DBFile(
                 owner_id=current_user.id,
                 folder_id=folder_id,
@@ -214,7 +229,7 @@ async def upload_files(
             db.commit()
             db.refresh(db_file)
 
-            # Notify via WebSocket
+            # Notify connected clients via WebSocket
             try:
                 await manager.broadcast_to_user(
                     current_user.id,
@@ -226,12 +241,8 @@ async def upload_files(
             uploaded_files_info.append({"filename": original_name, "status": "success", "id": db_file.id})
 
         except Exception as e:
-            if os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
-            print(f"Upload error for {original_name}: {e}")
+            import traceback
+            traceback.print_exc()
             uploaded_files_info.append({"filename": original_name, "status": "error", "detail": str(e)})
 
     return {"uploaded": uploaded_files_info}
@@ -241,8 +252,8 @@ async def upload_files(
 
 @router.get("/")
 def list_files(
-    folder_id: str = None,
-    is_favorite: str = None,
+    folder_id: Optional[str] = None,
+    is_favorite: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
     current_user: User = Depends(get_current_user),
@@ -262,7 +273,8 @@ def list_files(
 
     from sqlalchemy.sql.functions import coalesce
     files = (
-        query.order_by(coalesce(DBFile.date_taken, DBFile.created_at).desc())
+        query
+        .order_by(coalesce(DBFile.date_taken, DBFile.created_at).desc())
         .offset(skip)
         .limit(limit)
         .all()
@@ -286,7 +298,7 @@ def list_files(
     return result
 
 
-# ── Download (original quality) ───────────────────────────────────────────────
+# ── Download original quality ────────────────────────────────────────────────
 
 @router.get("/download/{file_id}")
 def download_file(
@@ -300,14 +312,11 @@ def download_file(
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # If on Cloudinary, redirect to original URL
+    # If stored on Supabase, redirect to the original public URL
     if db_file.storage_path and db_file.storage_path.startswith("http"):
-        from fastapi.responses import RedirectResponse
-        # Build raw original URL (no transformation) for download
-        public_id = f"media_server/{db_file.sha256}"
-        orig_url = cloudinary.CloudinaryImage(public_id).build_url(secure=True)
-        return RedirectResponse(url=orig_url)
+        return RedirectResponse(url=db_file.storage_path)
 
+    # Local fallback
     filepath = os.path.join(settings.UPLOADS_DIR, db_file.stored_name)
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Physical file not found on disk")
@@ -319,7 +328,7 @@ def download_file(
     )
 
 
-# ── Soft Delete (send to Recycle Bin) ────────────────────────────────────────
+# ── Soft delete (Recycle Bin) ────────────────────────────────────────────────
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_file(
@@ -338,14 +347,14 @@ def delete_file(
     db.commit()
 
 
-# ── Move ──────────────────────────────────────────────────────────────────────
+# ── Move ─────────────────────────────────────────────────────────────────────
 
 class MoveRequest(BaseModel):
-    folder_id: str = None
+    folder_id: Optional[str] = None
 
 class BulkMoveRequest(BaseModel):
     file_ids: List[str]
-    folder_id: str = None
+    folder_id: Optional[str] = None
 
 @router.put("/{file_id}/move")
 def move_file(
@@ -359,7 +368,6 @@ def move_file(
     ).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
-
     db_file.folder_id = body.folder_id
     db_file.updated_at = datetime.utcnow()
     db.commit()
@@ -382,7 +390,7 @@ def bulk_move_files(
     return {"status": "ok"}
 
 
-# ── Favourite ─────────────────────────────────────────────────────────────────
+# ── Favourite ────────────────────────────────────────────────────────────────
 
 @router.put("/{file_id}/favorite")
 def toggle_favorite(
@@ -395,14 +403,13 @@ def toggle_favorite(
     ).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
-
     db_file.is_favorite = not db_file.is_favorite
     db_file.updated_at = datetime.utcnow()
     db.commit()
     return {"status": "ok", "is_favorite": db_file.is_favorite}
 
 
-# ── Recycle Bin ───────────────────────────────────────────────────────────────
+# ── Recycle Bin ──────────────────────────────────────────────────────────────
 
 @router.get("/trash/list")
 def list_trash(
@@ -450,7 +457,6 @@ def restore_file(
     ).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found in trash")
-
     db_file.deleted_at = None
     db_file.updated_at = datetime.utcnow()
     db.commit()
@@ -471,14 +477,11 @@ def permanent_delete_file(
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found in trash")
 
-    # Delete from Cloudinary if stored there
+    # Delete from Supabase Storage
     if db_file.storage_path and db_file.storage_path.startswith("http"):
-        try:
-            cloudinary.uploader.destroy(f"media_server/{db_file.sha256}")
-        except Exception as e:
-            print(f"Cloudinary delete failed: {e}")
+        object_path = f"photos/{db_file.stored_name}"
+        _sb_delete(object_path)
     else:
-        # Delete local file
         local = os.path.join(settings.UPLOADS_DIR, db_file.stored_name)
         if os.path.exists(local):
             try:
@@ -501,10 +504,7 @@ def empty_trash(
 
     for f in trashed:
         if f.storage_path and f.storage_path.startswith("http"):
-            try:
-                cloudinary.uploader.destroy(f"media_server/{f.sha256}")
-            except Exception:
-                pass
+            _sb_delete(f"photos/{f.stored_name}")
         else:
             local = os.path.join(settings.UPLOADS_DIR, f.stored_name)
             if os.path.exists(local):
