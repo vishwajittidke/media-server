@@ -3,12 +3,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from pydantic import BaseModel
+import requests as http_requests
 
 from core.security import verify_password, get_password_hash, create_access_token
 from core.config import settings
 from models import User, RoleEnum, File as DBFile
-import cloudinary
-import cloudinary.uploader
 from schemas.auth import Token, UserCreate, UserOut
 from api.deps import get_db, get_current_user
 import uuid
@@ -74,13 +73,20 @@ def delete_user_me(current_user: User = Depends(get_current_user), db: Session =
     # Fetch all user's files
     user_files = db.query(DBFile).filter(DBFile.owner_id == current_user.id).all()
     
-    # 1. Delete from Cloudinary to prevent orphaned storage
-    for db_file in user_files:
-        if db_file.storage_path and db_file.storage_path.startswith("http"):
-            try:
-                cloudinary.uploader.destroy(f"media_server/{db_file.sha256}")
-            except Exception as e:
-                print(f"Failed to delete {db_file.sha256} from Cloudinary: {e}")
+    # 1. Delete from Supabase Storage to prevent orphaned files
+    if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_KEY:
+        headers = {
+            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
+            "apikey": settings.SUPABASE_SERVICE_KEY,
+        }
+        for db_file in user_files:
+            if db_file.storage_path and db_file.storage_path.startswith("http"):
+                try:
+                    object_path = f"photos/{db_file.stored_name}"
+                    url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET}/{object_path}"
+                    http_requests.delete(url, headers=headers, timeout=10)
+                except Exception as e:
+                    print(f"Failed to delete {db_file.stored_name} from Supabase: {e}")
                 
     # 2. Delete from database
     db.query(DBFile).filter(DBFile.owner_id == current_user.id).delete(synchronize_session=False)

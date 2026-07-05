@@ -111,11 +111,15 @@ def list_folders(
         if latest_file:
             # Map cover image (using Cloudinary or local path)
             if latest_file.storage_path and latest_file.storage_path.startswith("http"):
-                public_id = f"media_server/{latest_file.sha256}"
-                import cloudinary
-                cover_url = cloudinary.CloudinaryImage(public_id).build_url(
-                    secure=True, width=400, crop="limit", fetch_format="webp", quality="auto"
-                )
+                from core.config import settings
+                if settings.SUPABASE_URL:
+                    object_path = f"photos/{latest_file.stored_name}"
+                    cover_url = (
+                        f"{settings.SUPABASE_URL}/storage/v1/render/image/public/"
+                        f"{settings.SUPABASE_BUCKET}/{object_path}?width=400&quality=80&resize=contain"
+                    )
+                else:
+                    cover_url = latest_file.storage_path
             else:
                 cover_url = latest_file.thumbnail_path or latest_file.storage_path
 
