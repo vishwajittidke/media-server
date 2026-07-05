@@ -9,6 +9,14 @@
     font-family: 'Outfit', sans-serif;
     @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50;
   }
+  
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar { 
+    display: none; 
+  }
 }
 
 @layer components {

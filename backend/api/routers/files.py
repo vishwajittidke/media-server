@@ -203,13 +203,8 @@ def list_files(
             "is_favorite": f.is_favorite,
             "storage_path": f.storage_path,
         }
-        # Always use Cloudinary transformation URLs when configured
-        # These are URL-based transforms (free) not API calls
-        if settings.CLOUDINARY_URL and f.sha256:
-            public_id = f"media_server/{f.sha256}"
-            f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
-            f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
-        elif f.storage_path and f.storage_path.startswith("http"):
+        # Only use Cloudinary transformation URLs if the file is ACTUALLY on Cloudinary
+        if f.storage_path and f.storage_path.startswith("http"):
             public_id = f"media_server/{f.sha256}"
             f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
             f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
@@ -343,9 +338,13 @@ def list_trash(
             "created_at": f.created_at.isoformat(),
             "storage_path": f.storage_path,
         }
-        if settings.CLOUDINARY_URL and f.sha256:
+        if f.storage_path and f.storage_path.startswith("http"):
             public_id = f"media_server/{f.sha256}"
             f_dict["thumbnail_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=400, crop="limit", fetch_format="webp", quality="auto")
+            f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
+        else:
+            f_dict["thumbnail_url"] = f"/thumbnails/{f.stored_name}"
+            f_dict["preview_url"] = f"/uploads/{f.stored_name}"
         result.append(f_dict)
     return result
 
