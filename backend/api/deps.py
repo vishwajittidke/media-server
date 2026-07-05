@@ -20,17 +20,25 @@ def get_db() -> Generator:
         db.close()
 
 def get_current_user(request: Request, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
-    if not token:
-        token = request.query_params.get("token")
+    # Priority 1: HTTP-only cookie (most secure)
+    cookie_token = request.cookies.get("access_token")
     
-    if not token:
+    # Priority 2: Authorization header (for backwards compat / API clients)
+    header_token = token
+    
+    # Priority 3: Query param (for WebSocket connections)
+    query_token = request.query_params.get("token")
+    
+    final_token = cookie_token or header_token or query_token
+    
+    if not final_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
 
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(final_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")

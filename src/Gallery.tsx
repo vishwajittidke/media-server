@@ -26,11 +26,11 @@ interface FolderItem {
 }
 
 interface GalleryProps {
-  token: string;
+  wsToken: string | null;
   onLogout: () => void;
 }
 
-const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
+const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -89,9 +89,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       }
 
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -112,7 +110,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     } finally {
       if (pageNum === 0) setInitialLoading(false);
     }
-  }, [activeTab, token, onLogout, debouncedSearch]);
+  }, [activeTab, onLogout, debouncedSearch]);
 
   useEffect(() => {
     setPage(0);
@@ -153,7 +151,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     
     const connectWs = () => {
       const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);
-      ws = new WebSocket(`${wsUrl}/${token}`);
+      if (!wsToken) return;
+      ws = new WebSocket(`${wsUrl}/${wsToken}`);
       
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -177,15 +176,13 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         ws.close();
       }
     };
-  }, [token, currentFolderId, fetchFiles]);
+  }, [wsToken, currentFolderId, fetchFiles]);
 
   const fetchFolders = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/folders/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
@@ -279,7 +276,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       await new Promise<void>((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${apiUrl}/files/`);
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.withCredentials = true;
         
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
@@ -320,9 +317,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/folders/`, {
+        credentials: 'include',
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ name: newFolderName.trim() })
@@ -348,10 +345,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/folders/${folderId}`, {
+        credentials: 'include',
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (response.ok) {
         setFolders(prev => prev.filter(f => f.id !== folderId));
@@ -366,9 +361,10 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       
       if (fileId === 'BULK') {
-        const response = await fetch(`${apiUrl}/files/bulk/move`, {
+        const response = await fetch(`${apiUrl}/files/bulk-move`, {
+          credentials: 'include',
           method: 'PUT',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ file_ids: Array.from(selectedFileIds), folder_id: targetFolderId })
         });
         if (response.ok) {
@@ -379,8 +375,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
         }
       } else {
         const response = await fetch(`${apiUrl}/files/${fileId}/move`, {
+          credentials: 'include',
           method: 'PUT',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ folder_id: targetFolderId })
         });
         if (response.ok) {
@@ -399,8 +396,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}/favorite`, {
+        credentials: 'include',
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
@@ -420,8 +417,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/auth/change-password`, {
+        credentials: 'include',
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ old_password: passwordForm.old, new_password: passwordForm.new })
       });
       if (response.ok) {
@@ -457,10 +455,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/auth/me`, {
+        credentials: 'include',
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (response.ok) {
         onLogout();
@@ -477,10 +473,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     e.stopPropagation();
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
-      const response = await fetch(`${apiUrl}/files/download/${fileId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await fetch(`${apiUrl}/files/${fileId}/download`, {
+        credentials: 'include',
       });
       if (response.ok) {
         const blob = await response.blob();
@@ -510,10 +504,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}`, {
+        credentials: 'include',
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       
       if (response.ok || response.status === 204) {
@@ -530,11 +522,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     e.stopPropagation();
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
-      const response = await fetch(`${apiUrl}/files/trash/${fileId}/restore`, {
+      const response = await fetch(`${apiUrl}/files/${fileId}/restore`, {
+        credentials: 'include',
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (response.ok) {
         setFiles(prev => prev.filter(f => f.id !== fileId));
@@ -549,11 +539,9 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     if (!window.confirm("Permanently delete this photo? This cannot be undone.")) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
-      const response = await fetch(`${apiUrl}/files/trash/${fileId}/permanent`, {
+      const response = await fetch(`${apiUrl}/files/${fileId}/permanent`, {
+        credentials: 'include',
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (response.ok || response.status === 204) {
         setFiles(prev => prev.filter(f => f.id !== fileId));
@@ -568,10 +556,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const response = await fetch(`${apiUrl}/files/trash/empty`, {
+        credentials: 'include',
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (response.ok) {
         setFiles([]);

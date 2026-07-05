@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -15,7 +16,28 @@ from core.limiter import limiter
 
 router = APIRouter()
 
-@router.post("/login", response_model=Token)
+# Cookie config
+COOKIE_NAME = "access_token"
+COOKIE_MAX_AGE = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60  # seconds
+COOKIE_SAMESITE = "none"   # Required for cross-origin (Vercel → Render)
+COOKIE_SECURE = True       # Required when SameSite=none (HTTPS only)
+
+
+def _set_auth_cookie(response: JSONResponse, token: str) -> JSONResponse:
+    """Set the JWT as an HTTP-only, Secure cookie on the response."""
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=COOKIE_MAX_AGE,
+        path="/",
+    )
+    return response
+
+
+@router.post("/login")
 @limiter.limit("20/minute")
 def login_access_token(request: Request, db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
     user = db.query(User).filter(User.username == form_data.username).first()
@@ -25,10 +47,36 @@ def login_access_token(request: Request, db: Session = Depends(get_db), form_dat
         raise HTTPException(status_code=400, detail="Inactive user")
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": create_access_token(user.id, expires_delta=access_token_expires),
+    access_token = create_access_token(user.id, expires_delta=access_token_expires)
+    
+    # Return the token in the JSON body (for WebSocket connections that need it)
+    # AND set it as an HTTP-only cookie (for all fetch requests)
+    response = JSONResponse(content={
+        "access_token": access_token,
         "token_type": "bearer",
-    }
+    })
+    _set_auth_cookie(response, access_token)
+    return response
+
+
+@router.post("/logout")
+def logout(request: Request):
+    """Clear the auth cookie."""
+    response = JSONResponse(content={"status": "logged_out"})
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        path="/",
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+    )
+    return response
+
+
+@router.get("/check")
+def check_session(current_user: User = Depends(get_current_user)):
+    """Validate the current session cookie. Returns user info if valid."""
+    return {"authenticated": True, "username": current_user.username, "id": current_user.id}
+
 
 @router.post("/register", response_model=UserOut)
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)):

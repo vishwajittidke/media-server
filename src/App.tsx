@@ -1,26 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Gallery from './Gallery';
 
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [wsToken, setWsToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+
+  // On mount, check if we have a valid session cookie
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/auth/check`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          setIsAuthenticated(true);
+        }
+      } catch {
+        // No valid session — stay on login
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+    checkSession();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError(null);
     const formData = new URLSearchParams();
     formData.append("username", username);
     formData.append("password", password);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded"
         },
+        credentials: 'include',  // This tells the browser to accept and store the Set-Cookie
         body: formData.toString()
       });
 
@@ -29,8 +54,9 @@ function App() {
       }
 
       const data = await response.json();
-      setToken(data.access_token);
-      localStorage.setItem("token", data.access_token);
+      // Store the token ONLY for WebSocket (cookies can't be sent with WS)
+      setWsToken(data.access_token);
+      setIsAuthenticated(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -38,8 +64,29 @@ function App() {
     }
   };
 
-  if (token) {
-    return <Gallery token={token} onLogout={() => { setToken(null); localStorage.removeItem("token"); }} />;
+  const handleLogout = async () => {
+    try {
+      await fetch(`${apiUrl}/auth/logout`, {
+        method: "POST",
+        credentials: 'include',
+      });
+    } catch {
+      // Even if the API call fails, clear local state
+    }
+    setIsAuthenticated(false);
+    setWsToken(null);
+  };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center mesh-bg">
+        <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Gallery wsToken={wsToken} onLogout={handleLogout} />;
   }
 
   return (
