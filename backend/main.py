@@ -32,23 +32,10 @@ try:
 except Exception as e:
     print(f"Migration note (may already exist): {e}")
 
-# ── Auto-cleanup orphaned local files on startup ─────────────────────────────
-try:
-    from database import SessionLocal
-    from models import File as DBFile
-    with SessionLocal() as db:
-        orphaned = db.query(DBFile).filter(~DBFile.storage_path.startswith("http")).all()
-        deleted_count = 0
-        for f in orphaned:
-            local_path = os.path.join(settings.UPLOADS_DIR, f.stored_name)
-            if not os.path.exists(local_path):
-                db.delete(f)
-                deleted_count += 1
-        db.commit()
-        if deleted_count > 0:
-            print(f"🧹 Cleaned up {deleted_count} orphaned local file records (ghost images).")
-except Exception as e:
-    print(f"Orphan cleanup note: {e}")
+
+# NOTE: Do NOT add any "cleanup" or "orphan removal" logic here.
+# Render uses ephemeral disks — local files won't exist after a redeploy.
+# Deleting DB records based on missing local files would destroy ALL photo metadata.
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title=settings.PROJECT_NAME)
