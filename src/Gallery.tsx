@@ -58,6 +58,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -129,6 +130,23 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       fetchFiles(currentFolderId, page);
     }
   }, [page]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !initialLoading) {
+          setPage(p => p + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, initialLoading]);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -1049,13 +1067,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
             </motion.div>
             
             {!initialLoading && files.length > 0 && hasMore && (
-              <div className="w-full flex justify-center mt-10 pb-8">
-                <button 
-                  onClick={() => setPage(p => p + 1)}
-                  className="premium-btn !px-8 !py-3 font-semibold shadow-xl"
-                >
-                  Load More
-                </button>
+              <div ref={observerTarget} className="w-full flex justify-center mt-10 pb-8 opacity-50">
+                <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin"></div>
               </div>
             )}
           </PhotoSwipeGallery>
