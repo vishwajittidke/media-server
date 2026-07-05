@@ -117,17 +117,26 @@ async def upload_files(
             # Fallback local generation
             if mime_type.startswith("image/"):
                 os.makedirs(settings.THUMBNAILS_DIR, exist_ok=True)
+                os.makedirs(settings.PREVIEWS_DIR, exist_ok=True)
                 thumb_path = os.path.join(settings.THUMBNAILS_DIR, stored_name)
+                preview_path = os.path.join(settings.PREVIEWS_DIR, stored_name)
                 
-                if not os.path.exists(thumb_path):
-                    try:
-                        with Image.open(final_path) as img:
-                            if img.mode in ("RGBA", "P"):
-                                img = img.convert("RGB")
-                            img.thumbnail((400, 400))
-                            img.save(thumb_path, format="JPEG", quality=85)
-                    except Exception as e:
-                        print(f"Image processing failed: {e}")
+                try:
+                    # Generate Thumbnail (400px)
+                    with Image.open(final_path) as img:
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        img.thumbnail((400, 400))
+                        img.save(thumb_path, format="JPEG", quality=85)
+                    
+                    # Generate Preview (1080p)
+                    with Image.open(final_path) as img:
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        img.thumbnail((1920, 1080))
+                        img.save(preview_path, format="JPEG", quality=85)
+                except Exception as e:
+                    print(f"Image processing failed: {e}")
 
         # Database record
         from datetime import datetime
@@ -210,7 +219,7 @@ def list_files(
             f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
         else:
             f_dict["thumbnail_url"] = f"/thumbnails/{f.stored_name}"
-            f_dict["preview_url"] = f"/uploads/{f.stored_name}"
+            f_dict["preview_url"] = f"/previews/{f.stored_name}"
         result.append(f_dict)
         
     return result
@@ -344,7 +353,7 @@ def list_trash(
             f_dict["preview_url"] = cloudinary.CloudinaryImage(public_id).build_url(secure=True, width=2048, crop="limit", fetch_format="webp", quality="auto")
         else:
             f_dict["thumbnail_url"] = f"/thumbnails/{f.stored_name}"
-            f_dict["preview_url"] = f"/uploads/{f.stored_name}"
+            f_dict["preview_url"] = f"/previews/{f.stored_name}"
         result.append(f_dict)
     return result
 
