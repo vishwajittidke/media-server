@@ -1072,7 +1072,7 @@
 
 // export default Gallery;
 
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Gallery as PhotoSwipeGallery, Item } from 'react-photoswipe-gallery';
 import 'photoswipe/dist/photoswipe.css';
 import exifr from 'exifr';
@@ -1102,10 +1102,72 @@ interface GalleryProps {
   onLogout: () => void;
 }
 
-interface DateGroup {
-  date: string;
-  items: FileItem[];
-}
+// Sub-Component: Handles Authenticated Fetching of Preview Assets to prevent vanishing on reload
+const AuthImage: React.FC<{
+  url: string;
+  token: string;
+  alt: string;
+  className: string;
+  onLoad: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+}> = ({ url, token, alt, className, onLoad }) => {
+  const [src, setSrc] = useState<string>('');
+  const [error, setError] = useState<boolean>(false);
+
+  useEffect(() => {
+    let objectUrl = '';
+    setError(false);
+
+    fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load image');
+        return res.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch((err) => {
+        console.error("Auth image fetch error:", err);
+        setError(true);
+      });
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [url, token]);
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/50 text-xs text-red-400 p-2 text-center">
+        <span>⚠️ Load Failed</span>
+      </div>
+    );
+  }
+
+  if (!src) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-white/5 animate-pulse">
+        <div className="w-6 h-6 border-2 border-t-transparent border-white/40 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className={className} 
+      onLoad={onLoad} 
+      loading="lazy" 
+    />
+  );
+};
 
 const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -1129,48 +1191,17 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [dimensions, setDimensions] = useState<Record<string, {width: number, height: number}>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Feature: Timeline view grouping logic
-  const groupedFiles = useMemo(() => {
-    const groups: Record<string, FileItem[]> = {};
-
-    files.forEach((file) => {
-      let dateString = 'Unknown Date';
-      const targetDate = file.date_taken || file.created_at;[cite: 2]
-
-      if (targetDate) {
-        const d = new Date(targetDate);
-        if (!isNaN(d.getTime())) {
-          dateString = d.toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          });
-        }
-      }
-
-      if (!groups[dateString]) {
-        groups[dateString] = [];
-      }
-      groups[dateString].push(file);
-    });
-
-    return Object.keys(groups).map((date) => ({
-      date,
-      items: groups[date],
-    })) as DateGroup[];
-  }, [files]);
-
   const fetchFolders = useCallback(async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/folders/`, {[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/folders/`, {[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
       if (response.ok) {
         const data = await response.json();
-        setFolders(data);[cite: 2]
+        setFolders(data);[cite: 3]
       }
     } catch (err) {
       console.error("Failed to fetch folders", err);
@@ -1179,60 +1210,60 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
 
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
     try {
-      if (pageNum === 0) setInitialLoading(true);[cite: 2]
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;[cite: 2]
+      if (pageNum === 0) setInitialLoading(true);[cite: 3]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;[cite: 3]
       
-      if (activeTab === 'trash') {[cite: 2]
-        url = `${apiUrl}/files/trash/list?skip=${pageNum * 50}&limit=50`;[cite: 2]
+      if (activeTab === 'trash') {[cite: 3]
+        url = `${apiUrl}/files/trash/list?skip=${pageNum * 50}&limit=50`;[cite: 3]
       } else {
-        if (folderId && activeTab !== 'favorites') {[cite: 2]
-          url += `&folder_id=${folderId}`;[cite: 2]
+        if (folderId && activeTab !== 'favorites') {[cite: 3]
+          url += `&folder_id=${folderId}`;[cite: 3]
         }
-        if (activeTab === 'favorites') {[cite: 2]
-          url += `&is_favorite=true`;[cite: 2]
+        if (activeTab === 'favorites') {[cite: 3]
+          url += `&is_favorite=true`;[cite: 3]
         }
       }
 
-      const response = await fetch(url, {[cite: 2]
+      const response = await fetch(url, {[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
 
-      if (response.ok) {[cite: 2]
+      if (response.ok) {[cite: 3]
         const data = await response.json();
         
-        if (pageNum === 0) {[cite: 2]
-          setFiles(data);[cite: 2]
+        if (pageNum === 0) {[cite: 3]
+          setFiles(data);[cite: 3]
         } else {
-          setFiles(prev => [...prev, ...data]);[cite: 2]
+          setFiles(prev => [...prev, ...data]);[cite: 3]
         }
         
-        setHasMore(data.length === 50);[cite: 2]
-      } else if (response.status === 401) {[cite: 2]
-        onLogout();[cite: 2]
+        setHasMore(data.length === 50);[cite: 3]
+      } else if (response.status === 401) {[cite: 3]
+        onLogout();[cite: 3]
       }
     } catch (err) {
       console.error("Failed to fetch files", err);
     } finally {
-      if (pageNum === 0) setInitialLoading(false);[cite: 2]
+      if (pageNum === 0) setInitialLoading(false);[cite: 3]
     }
   }, [activeTab, token, onLogout]);
 
   useEffect(() => {
-    setPage(0);[cite: 2]
-    setHasMore(true);[cite: 2]
-    fetchFiles(currentFolderId, 0);[cite: 2]
-    if (activeTab === 'albums' && currentFolderId === null) {[cite: 2]
+    setPage(0);[cite: 3]
+    setHasMore(true);[cite: 3]
+    fetchFiles(currentFolderId, 0);[cite: 3]
+    if (activeTab === 'albums' && currentFolderId === null) {[cite: 3]
       fetchFolders();
     }
-    fetchFolders();
-  }, [currentFolderId, activeTab, fetchFiles, fetchFolders]);
+    if (folders.length === 0) fetchFolders();
+  }, [currentFolderId, activeTab, fetchFiles, fetchFolders, folders.length]);
 
   useEffect(() => {
-    if (page > 0) {[cite: 2]
-      fetchFiles(currentFolderId, page);[cite: 2]
+    if (page > 0) {[cite: 3]
+      fetchFiles(currentFolderId, page);[cite: 3]
     }
   }, [page, currentFolderId, fetchFiles]);
 
@@ -1240,18 +1271,18 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     let ws: WebSocket;
     
     const connectWs = () => {
-      const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);[cite: 2]
-      ws = new WebSocket(`${wsUrl}/${token}`);[cite: 2]
+      const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);[cite: 3]
+      ws = new WebSocket(`${wsUrl}/${token}`);[cite: 3]
       
-      ws.onmessage = (event) => {[cite: 2]
-        const data = JSON.parse(event.data);[cite: 2]
-        if (data.type === "FILE_UPLOADED") {[cite: 2]
-          setPage(0);[cite: 2]
-          fetchFiles(currentFolderId, 0);[cite: 2]
+      ws.onmessage = (event) => {[cite: 3]
+        const data = JSON.parse(event.data);[cite: 3]
+        if (data.type === "FILE_UPLOADED") {[cite: 3]
+          setPage(0);[cite: 3]
+          fetchFiles(currentFolderId, 0);[cite: 3]
         }
       };
 
-      ws.onclose = () => {[cite: 2]
+      ws.onclose = () => {[cite: 3]
         setTimeout(connectWs, 3000);
       };
     };
@@ -1259,797 +1290,764 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     connectWs();
 
     return () => {
-      if (ws) {[cite: 2]
-        ws.onclose = null;[cite: 2]
-        ws.close();[cite: 2]
+      if (ws) {[cite: 3]
+        ws.onclose = null;[cite: 3]
+        ws.close();[cite: 3]
       }
     };
   }, [token, currentFolderId, fetchFiles]);
 
-  const handleDragOver = (e: React.DragEvent) => {[cite: 2]
-    e.preventDefault();[cite: 2]
-    setIsDragging(true);[cite: 2]
+  const handleDragOver = (e: React.DragEvent) => {[cite: 3]
+    e.preventDefault();[cite: 3]
+    setIsDragging(true);[cite: 3]
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {[cite: 2]
-    e.preventDefault();[cite: 2]
-    setIsDragging(false);[cite: 2]
+  const handleDragLeave = (e: React.DragEvent) => {[cite: 3]
+    e.preventDefault();[cite: 3]
+    setIsDragging(false);[cite: 3]
   };
 
-  const handleDrop = async (e: React.DragEvent) => {[cite: 2]
-    e.preventDefault();[cite: 2]
-    setIsDragging(false);[cite: 2]
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {[cite: 2]
-      await uploadFiles(Array.from(e.dataTransfer.files));[cite: 2]
+  const handleDrop = async (e: React.DragEvent) => {[cite: 3]
+    e.preventDefault();[cite: 3]
+    setIsDragging(false);[cite: 3]
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {[cite: 3]
+      await uploadFiles(Array.from(e.dataTransfer.files));[cite: 3]
     }
   };
 
-  const compressImage = (file: File): Promise<File> => {[cite: 2]
-    return new Promise((resolve) => {[cite: 2]
-      if (!file.type.startsWith('image/')) {[cite: 2]
-        resolve(file); return;[cite: 2]
+  const compressImage = (file: File): Promise<File> => {[cite: 3]
+    return new Promise((resolve) => {[cite: 3]
+      if (!file.type.startsWith('image/')) {[cite: 3]
+        resolve(file); return;[cite: 3]
       }
-      const reader = new FileReader();[cite: 2]
-      reader.readAsDataURL(file);[cite: 2]
-      reader.onload = (e) => {[cite: 2]
-        const img = new Image();[cite: 2]
-        img.src = e.target?.result as string;[cite: 2]
-        img.onload = () => {[cite: 2]
-          const MAX_WIDTH = 1920; const MAX_HEIGHT = 1920;[cite: 2]
-          let width = img.width; let height = img.height;[cite: 2]
-          if (width > height) {[cite: 2]
-            if (width > MAX_WIDTH) { height = Math.round((height *= MAX_WIDTH / width)); width = MAX_WIDTH; }[cite: 2]
+      const reader = new FileReader();[cite: 3]
+      reader.readAsDataURL(file);[cite: 3]
+      reader.onload = (e) => {[cite: 3]
+        const img = new Image();[cite: 3]
+        img.src = e.target?.result as string;[cite: 3]
+        img.onload = () => {[cite: 3]
+          const MAX_WIDTH = 1920; const MAX_HEIGHT = 1920;[cite: 3]
+          let width = img.width; let height = img.height;[cite: 3]
+          if (width > height) {[cite: 3]
+            if (width > MAX_WIDTH) { height = Math.round((height *= MAX_WIDTH / width)); width = MAX_WIDTH; }[cite: 3]
           } else {
-            if (height > MAX_HEIGHT) { width = Math.round((width *= MAX_HEIGHT / height)); height = MAX_HEIGHT; }[cite: 2]
+            if (height > MAX_HEIGHT) { width = Math.round((width *= MAX_HEIGHT / height)); height = MAX_HEIGHT; }[cite: 3]
           }
-          const canvas = document.createElement('canvas');[cite: 2]
-          canvas.width = width; canvas.height = height;[cite: 2]
-          const ctx = canvas.getContext('2d');[cite: 2]
-          ctx?.drawImage(img, 0, 0, width, height);[cite: 2]
-          canvas.toBlob((blob) => {[cite: 2]
-            if (blob) {[cite: 2]
-              resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));[cite: 2]
-            } else { resolve(file); }[cite: 2]
-          }, 'image/jpeg', 0.85);[cite: 2]
+          const canvas = document.createElement('canvas');[cite: 3]
+          canvas.width = width; canvas.height = height;[cite: 3]
+          const ctx = canvas.getContext('2d');[cite: 3]
+          ctx?.drawImage(img, 0, 0, width, height);[cite: 3]
+          canvas.toBlob((blob) => {[cite: 3]
+            if (blob) {[cite: 3]
+              resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));[cite: 3]
+            } else { resolve(file); }[cite: 3]
+          }, 'image/jpeg', 0.85);[cite: 3]
         };
-        img.onerror = () => resolve(file);[cite: 2]
+        img.onerror = () => resolve(file);[cite: 3]
       };
-      reader.onerror = () => resolve(file);[cite: 2]
+      reader.onerror = () => resolve(file);[cite: 3]
     });
   };
 
-  const uploadFiles = async (fileList: File[]) => {[cite: 2]
-    setUploading(true);[cite: 2]
-    setUploadProgress(0);[cite: 2]
+  const uploadFiles = async (fileList: File[]) => {[cite: 3]
+    setUploading(true);[cite: 3]
+    setUploadProgress(0);[cite: 3]
     
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-    let totalLoaded = 0;[cite: 2]
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+    let totalLoaded = 0;[cite: 3]
     
-    const compressedFiles = await Promise.all(fileList.map(f => compressImage(f)));[cite: 2]
-    const totalSize = compressedFiles.reduce((acc, file) => acc + file.size, 0);[cite: 2]
+    const compressedFiles = await Promise.all(fileList.map(f => compressImage(f)));[cite: 3]
+    const totalSize = compressedFiles.reduce((acc, file) => acc + file.size, 0);[cite: 3]
 
-    for (let i = 0; i < compressedFiles.length; i++) {[cite: 2]
-      const file = compressedFiles[i];[cite: 2]
-      const formData = new FormData();[cite: 2]
-      formData.append("files", file);[cite: 2]
+    for (let i = 0; i < compressedFiles.length; i++) {[cite: 3]
+      const file = compressedFiles[i];[cite: 3]
+      const formData = new FormData();[cite: 3]
+      formData.append("files", file);[cite: 3]
       
       try {
-        const exifData = await exifr.parse(file, { pick: ['DateTimeOriginal'] });[cite: 2]
-        if (exifData && exifData.DateTimeOriginal) {[cite: 2]
-          formData.append("date_taken", exifData.DateTimeOriginal.toISOString());[cite: 2]
+        const exifData = await exifr.parse(file, { pick: ['DateTimeOriginal'] });[cite: 3]
+        if (exifData && exifData.DateTimeOriginal) {[cite: 3]
+          formData.append("date_taken", exifData.DateTimeOriginal.toISOString());[cite: 3]
         }
       } catch (e) {
-        // ignore
+        // silently ignore EXIF parsing errors
       }
 
-      if (currentFolderId) {[cite: 2]
-        formData.append("folder_id", currentFolderId);[cite: 2]
+      if (currentFolderId) {[cite: 3]
+        formData.append("folder_id", currentFolderId);[cite: 3]
       }
 
-      await new Promise<void>((resolve) => {[cite: 2]
-        const xhr = new XMLHttpRequest();[cite: 2]
-        xhr.open('POST', `${apiUrl}/files/`);[cite: 2]
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);[cite: 2]
+      await new Promise<void>((resolve) => {[cite: 3]
+        const xhr = new XMLHttpRequest();[cite: 3]
+        xhr.open('POST', `${apiUrl}/files/`);[cite: 3]
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);[cite: 3]
         
-        xhr.upload.onprogress = (event) => {[cite: 2]
-          if (event.lengthComputable) {[cite: 2]
-            const currentTotalLoaded = totalLoaded + event.loaded;[cite: 2]
-            const percentComplete = Math.round((currentTotalLoaded / totalSize) * 100);[cite: 2]
-            setUploadProgress(Math.min(percentComplete, 100));[cite: 2]
+        xhr.upload.onprogress = (event) => {[cite: 3]
+          if (event.lengthComputable) {[cite: 3]
+            const currentTotalLoaded = totalLoaded + event.loaded;[cite: 3]
+            const percentComplete = Math.round((currentTotalLoaded / totalSize) * 100);[cite: 3]
+            setUploadProgress(Math.min(percentComplete, 100));[cite: 3]
           }
         };
 
-        xhr.onload = () => {[cite: 2]
-          if (xhr.status >= 200 && xhr.status < 300) {[cite: 2]
-            totalLoaded += file.size;[cite: 2]
-            resolve();[cite: 2]
+        xhr.onload = () => {[cite: 3]
+          if (xhr.status >= 200 && xhr.status < 300) {[cite: 3]
+            totalLoaded += file.size;[cite: 3]
+            resolve();[cite: 3]
           } else {
-            console.error(`Upload failed for ${file.name} with status`, xhr.status);[cite: 2]
+            console.error(`Upload failed for ${file.name} with status`, xhr.status);[cite: 3]
             resolve(); 
           }
         };
 
-        xhr.onerror = () => {[cite: 2]
-          console.error(`Upload failed for ${file.name} due to network error`);[cite: 2]
+        xhr.onerror = () => {[cite: 3]
+          console.error(`Upload failed for ${file.name} due to network error`);[cite: 3]
           resolve(); 
         };
 
-        xhr.send(formData);[cite: 2]
+        xhr.send(formData);[cite: 3]
       });
     }
 
-    setPage(0);[cite: 2]
-    await fetchFiles(currentFolderId, 0);[cite: 2]
-    setUploading(false);[cite: 2]
-    setUploadProgress(null);[cite: 2]
+    setPage(0);[cite: 3]
+    await fetchFiles(currentFolderId, 0);[cite: 3]
+    setUploading(false);[cite: 3]
+    setUploadProgress(null);[cite: 3]
   };
 
-  const handleCreateFolder = async (e: React.FormEvent) => {[cite: 2]
-    e.preventDefault();[cite: 2]
-    if (!newFolderName.trim()) return;[cite: 2]
+  const handleCreateFolder = async (e: React.FormEvent) => {[cite: 3]
+    e.preventDefault();[cite: 3]
+    if (!newFolderName.trim()) return;[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/folders/`, {[cite: 2]
-        method: 'POST',[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/folders/`, {[cite: 3]
+        method: 'POST',[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`,[cite: 2]
-          'Content-Type': 'application/json'[cite: 2]
+          'Authorization': `Bearer ${token}`,[cite: 3]
+          'Content-Type': 'application/json'[cite: 3]
         },
-        body: JSON.stringify({ name: newFolderName.trim() })[cite: 2]
+        body: JSON.stringify({ name: newFolderName.trim() })[cite: 3]
       });
-      if (response.ok) {[cite: 2]
-        setNewFolderName('');[cite: 2]
-        setShowCreateModal(false);[cite: 2]
+      if (response.ok) {[cite: 3]
+        setNewFolderName('');[cite: 3]
+        setShowCreateModal(false);[cite: 3]
         fetchFolders();
       } else {
-        const errorText = await response.text();[cite: 2]
-        alert(`Failed to create album: ${response.status} - ${errorText}`);[cite: 2]
+        const errorText = await response.text();[cite: 3]
+        alert(`Failed to create album: ${response.status} - ${errorText}`);[cite: 3]
       }
     } catch (err: any) {
-      console.error("Failed to create folder", err);[cite: 2]
-      alert(`Network error: ${err.message}`);[cite: 2]
+      console.error("Failed to create folder", err);[cite: 3]
+      alert(`Network error: ${err.message}`);[cite: 3]
     }
   };
 
-  const handleDeleteFolder = async (e: React.MouseEvent, folderId: string) => {[cite: 2]
-    e.preventDefault();[cite: 2]
-    e.stopPropagation();[cite: 2]
-    if (!window.confirm("Delete this album? Photos inside will be moved to 'All Photos'.")) return;[cite: 2]
+  const handleDeleteFolder = async (e: React.MouseEvent, folderId: string) => {[cite: 3]
+    e.preventDefault();[cite: 3]
+    e.stopPropagation();[cite: 3]
+    if (!window.confirm("Delete this album? Photos inside will be moved to 'All Photos'.")) return;[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/folders/${folderId}`, {[cite: 2]
-        method: 'DELETE',[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/folders/${folderId}`, {[cite: 3]
+        method: 'DELETE',[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
-      if (response.ok) {[cite: 2]
-        setFolders(prev => prev.filter(f => f.id !== folderId));[cite: 2]
+      if (response.ok) {[cite: 3]
+        setFolders(prev => prev.filter(f => f.id !== folderId));[cite: 3]
       }
     } catch (err) {
-      console.error("Failed to delete folder", err);[cite: 2]
+      console.error("Failed to delete folder", err);[cite: 3]
     }
   };
 
-  const handleMoveFile = async (fileId: string, targetFolderId: string | null) => {[cite: 2]
+  const handleMoveFile = async (fileId: string, targetFolderId: string | null) => {[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
       
-      if (fileId === 'BULK') {[cite: 2]
-        const response = await fetch(`${apiUrl}/files/bulk/move`, {[cite: 2]
-          method: 'PUT',[cite: 2]
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },[cite: 2]
-          body: JSON.stringify({ file_ids: Array.from(selectedFileIds), folder_id: targetFolderId })[cite: 2]
+      if (fileId === 'BULK') {[cite: 3]
+        const response = await fetch(`${apiUrl}/files/bulk/move`, {[cite: 3]
+          method: 'PUT',[cite: 3]
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },[cite: 3]
+          body: JSON.stringify({ file_ids: Array.from(selectedFileIds), folder_id: targetFolderId })[cite: 3]
         });
-        if (response.ok) {[cite: 2]
-          setFiles(prev => prev.filter(f => !selectedFileIds.has(f.id)));[cite: 2]
-          setMovingFileId(null);[cite: 2]
-          setIsSelectMode(false);[cite: 2]
-          setSelectedFileIds(new Set());[cite: 2]
+        if (response.ok) {[cite: 3]
+          setFiles(prev => prev.filter(f => !selectedFileIds.has(f.id)));[cite: 3]
+          setMovingFileId(null);[cite: 3]
+          setIsSelectMode(false);[cite: 3]
+          setSelectedFileIds(new Set());[cite: 3]
         }
       } else {
-        const response = await fetch(`${apiUrl}/files/${fileId}/move`, {[cite: 2]
-          method: 'PUT',[cite: 2]
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },[cite: 2]
-          body: JSON.stringify({ folder_id: targetFolderId })[cite: 2]
+        const response = await fetch(`${apiUrl}/files/${fileId}/move`, {[cite: 3]
+          method: 'PUT',[cite: 3]
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },[cite: 3]
+          body: JSON.stringify({ folder_id: targetFolderId })[cite: 3]
         });
-        if (response.ok) {[cite: 2]
-          setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 2]
-          setMovingFileId(null);[cite: 2]
+        if (response.ok) {[cite: 3]
+          setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 3]
+          setMovingFileId(null);[cite: 3]
         } else {
-          alert("Failed to move file.");[cite: 2]
+          alert("Failed to move file.");[cite: 3]
         }
       }
     } catch (err) {
-      console.error("Failed to move file", err);[cite: 2]
+      console.error("Failed to move file", err);[cite: 3]
     }
   };
 
-  const toggleFavorite = async (fileId: string) => {[cite: 2]
+  const toggleFavorite = async (fileId: string) => {[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/files/${fileId}/favorite`, {[cite: 2]
-        method: 'PUT',[cite: 2]
-        headers: { 'Authorization': `Bearer ${token}` }[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/files/${fileId}/favorite`, {[cite: 3]
+        method: 'PUT',[cite: 3]
+        headers: { 'Authorization': `Bearer ${token}` }[cite: 3]
       });
-      if (response.ok) {[cite: 2]
-        const data = await response.json();[cite: 2]
-        if (activeTab === 'favorites' && !data.is_favorite) {[cite: 2]
-          setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 2]
+      if (response.ok) {[cite: 3]
+        const data = await response.json();[cite: 3]
+        if (activeTab === 'favorites' && !data.is_favorite) {[cite: 3]
+          setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 3]
         } else {
-          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, is_favorite: data.is_favorite } : f));[cite: 2]
+          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, is_favorite: data.is_favorite } : f));[cite: 3]
         }
       }
     } catch (err) {
-      console.error(err);[cite: 2]
+      console.error(err);[cite: 3]
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {[cite: 2]
-    e.preventDefault();[cite: 2]
+  const handleChangePassword = async (e: React.FormEvent) => {[cite: 3]
+    e.preventDefault();[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/auth/change-password`, {[cite: 2]
-        method: 'PUT',[cite: 2]
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },[cite: 2]
-        body: JSON.stringify({ old_password: passwordForm.old, new_password: passwordForm.new })[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/auth/change-password`, {[cite: 3]
+        method: 'PUT',[cite: 3]
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },[cite: 3]
+        body: JSON.stringify({ old_password: passwordForm.old, new_password: passwordForm.new })[cite: 3]
       });
-      if (response.ok) {[cite: 2]
-        alert("Password changed successfully!");[cite: 2]
-        setShowPasswordModal(false);[cite: 2]
-        setPasswordForm({ old: '', new: '' });[cite: 2]
+      if (response.ok) {[cite: 3]
+        alert("Password changed successfully!");[cite: 3]
+        setShowPasswordModal(false);[cite: 3]
+        setPasswordForm({ old: '', new: '' });[cite: 3]
       } else {
-        alert("Incorrect old password or failed to change.");[cite: 2]
+        alert("Incorrect old password or failed to change.");[cite: 3]
       }
     } catch (err) {
-      console.error(err);[cite: 2]
+      console.error(err);[cite: 3]
     }
   };
 
-  const toggleSelection = (fileId: string) => {[cite: 2]
-    const newSet = new Set(selectedFileIds);[cite: 2]
-    if (newSet.has(fileId)) newSet.delete(fileId);[cite: 2]
-    else newSet.add(fileId);[cite: 2]
-    setSelectedFileIds(newSet);[cite: 2]
+  const toggleSelection = (fileId: string) => {[cite: 3]
+    const newSet = new Set(selectedFileIds);[cite: 3]
+    if (newSet.has(fileId)) newSet.delete(fileId);[cite: 3]
+    else newSet.add(fileId);[cite: 3]
+    setSelectedFileIds(newSet);[cite: 3]
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {[cite: 2]
-    if (!e.target.files || e.target.files.length === 0) return;[cite: 2]
-    await uploadFiles(Array.from(e.target.files));[cite: 2]
-    if (fileInputRef.current) {[cite: 2]
-      fileInputRef.current.value = '';[cite: 2]
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {[cite: 3]
+    if (!e.target.files || e.target.files.length === 0) return;[cite: 3]
+    await uploadFiles(Array.from(e.target.files));[cite: 3]
+    if (fileInputRef.current) {[cite: 3]
+      fileInputRef.current.value = '';[cite: 3]
     }
   };
 
-  const handleDeleteAccount = async () => {[cite: 2]
-    if (!window.confirm("WARNING: This will permanently delete your account and ALL your photos. This action cannot be undone. Are you absolutely sure?")) return;[cite: 2]
+  const handleDeleteAccount = async () => {[cite: 3]
+    if (!window.confirm("WARNING: This will permanently delete your account and ALL your photos. This action cannot be undone. Are you absolutely sure?")) return;[cite: 3]
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/auth/me`, {[cite: 2]
-        method: 'DELETE',[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/auth/me`, {[cite: 3]
+        method: 'DELETE',[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
-      if (response.ok) {[cite: 2]
-        onLogout();[cite: 2]
+      if (response.ok) {[cite: 3]
+        onLogout();[cite: 3]
       } else {
-        alert("Failed to delete account.");[cite: 2]
+        alert("Failed to delete account.");[cite: 3]
       }
     } catch (err) {
-      console.error("Delete account failed", err);[cite: 2]
+      console.error("Delete account failed", err);[cite: 3]
     }
   };
 
-  const handleDownload = async (e: React.MouseEvent, fileId: string, originalName: string) => {[cite: 2]
-    e.preventDefault();[cite: 2]
-    e.stopPropagation();[cite: 2]
+  const handleDownload = async (e: React.MouseEvent, fileId: string, originalName: string) => {[cite: 3]
+    e.preventDefault();[cite: 3]
+    e.stopPropagation();[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/files/download/${fileId}`, {[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/files/download/${fileId}`, {[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
-      if (response.ok) {[cite: 2]
-        const blob = await response.blob();[cite: 2]
-        const url = window.URL.createObjectURL(blob);[cite: 2]
-        const a = document.createElement('a');[cite: 2]
-        a.style.display = 'none';[cite: 2]
-        a.href = url;[cite: 2]
-        a.download = originalName;[cite: 2]
-        document.body.appendChild(a);[cite: 2]
-        a.click();[cite: 2]
-        window.URL.revokeObjectURL(url);[cite: 2]
-        document.body.removeChild(a);[cite: 2]
+      if (response.ok) {[cite: 3]
+        const blob = await response.blob();[cite: 3]
+        const url = window.URL.createObjectURL(blob);[cite: 3]
+        const a = document.createElement('a');[cite: 3]
+        a.style.display = 'none';[cite: 3]
+        a.href = url;[cite: 3]
+        a.download = originalName;[cite: 3]
+        document.body.appendChild(a);[cite: 3]
+        a.click();[cite: 3]
+        window.URL.revokeObjectURL(url);[cite: 3]
+        document.body.removeChild(a);[cite: 3]
       } else {
-        alert("Failed to download file: Server returned " + response.status);[cite: 2]
+        alert("Failed to download file: Server returned " + response.status);[cite: 3]
       }
     } catch (err) {
-      console.error("Download failed", err);[cite: 2]
-      alert("Download failed due to network error.");[cite: 2]
+      console.error("Download failed", err);[cite: 3]
+      alert("Download failed due to network error.");[cite: 3]
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, fileId: string) => {[cite: 2]
-    e.preventDefault();[cite: 2]
-    e.stopPropagation();[cite: 2]
-    if (!window.confirm("Are you sure you want to delete this photo? It will be moved to the Recycle Bin.")) return;[cite: 2]
+  const handleDelete = async (e: React.MouseEvent, fileId: string) => {[cite: 3]
+    e.preventDefault();[cite: 3]
+    e.stopPropagation();[cite: 3]
+    if (!window.confirm("Are you sure you want to delete this photo? It will be moved to the Recycle Bin.")) return;[cite: 3]
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/files/${fileId}`, {[cite: 2]
-        method: 'DELETE',[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/files/${fileId}`, {[cite: 3]
+        method: 'DELETE',[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
       
-      if (response.ok || response.status === 204) {[cite: 2]
-        setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 2]
+      if (response.ok || response.status === 204) {[cite: 3]
+        setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 3]
       } else {
-        alert("Failed to delete file.");[cite: 2]
+        alert("Failed to delete file.");[cite: 3]
       }
     } catch (err) {
-      console.error("Delete failed", err);[cite: 2]
+      console.error("Delete failed", err);[cite: 3]
     }
   };
 
-  const handleRestore = async (e: React.MouseEvent, fileId: string) => {[cite: 2]
-    e.stopPropagation();[cite: 2]
+  const handleRestore = async (e: React.MouseEvent, fileId: string) => {[cite: 3]
+    e.stopPropagation();[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/files/trash/${fileId}/restore`, {[cite: 2]
-        method: 'PUT',[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/files/trash/${fileId}/restore`, {[cite: 3]
+        method: 'PUT',[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
-      if (response.ok) {[cite: 2]
-        setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 2]
+      if (response.ok) {[cite: 3]
+        setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 3]
       }
     } catch (err) {
-      console.error(err);[cite: 2]
+      console.error(err);[cite: 3]
     }
   };
 
-  const handlePermanentDelete = async (e: React.MouseEvent, fileId: string) => {[cite: 2]
-    e.stopPropagation();[cite: 2]
-    if (!window.confirm("Permanently delete this photo? This cannot be undone.")) return;[cite: 2]
+  const handlePermanentDelete = async (e: React.MouseEvent, fileId: string) => {[cite: 3]
+    e.stopPropagation();[cite: 3]
+    if (!window.confirm("Permanently delete this photo? This cannot be undone.")) return;[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/files/trash/${fileId}/permanent`, {[cite: 2]
-        method: 'DELETE',[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/files/trash/${fileId}/permanent`, {[cite: 3]
+        method: 'DELETE',[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
-      if (response.ok || response.status === 204) {[cite: 2]
-        setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 2]
+      if (response.ok || response.status === 204) {[cite: 3]
+        setFiles(prev => prev.filter(f => f.id !== fileId));[cite: 3]
       }
     } catch (err) {
-      console.error(err);[cite: 2]
+      console.error(err);[cite: 3]
     }
   };
 
-  const handleEmptyTrash = async () => {[cite: 2]
-    if (!window.confirm("Permanently delete ALL photos in the Recycle Bin? This cannot be undone.")) return;[cite: 2]
+  const handleEmptyTrash = async () => {[cite: 3]
+    if (!window.confirm("Permanently delete ALL photos in the Recycle Bin? This cannot be undone.")) return;[cite: 3]
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-      const response = await fetch(`${apiUrl}/files/trash/empty`, {[cite: 2]
-        method: 'DELETE',[cite: 2]
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+      const response = await fetch(`${apiUrl}/files/trash/empty`, {[cite: 3]
+        method: 'DELETE',[cite: 3]
         headers: {
-          'Authorization': `Bearer ${token}`[cite: 2]
+          'Authorization': `Bearer ${token}`[cite: 3]
         }
       });
-      if (response.ok) {[cite: 2]
-        setFiles([]);[cite: 2]
+      if (response.ok) {[cite: 3]
+        setFiles([]);[cite: 3]
       }
     } catch (err) {
-      console.error(err);[cite: 2]
+      console.error(err);[cite: 3]
     }
   };
 
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>, fileId: string) => {[cite: 2]
-    const target = e.target as HTMLImageElement;[cite: 2]
-    if (target.naturalWidth && target.naturalHeight) {[cite: 2]
-      setDimensions(prev => {[cite: 2]
-        if (prev[fileId]?.width === target.naturalWidth && prev[fileId]?.height === target.naturalHeight) {[cite: 2]
-          return prev;[cite: 2]
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>, fileId: string) => {[cite: 3]
+    const target = e.target as HTMLImageElement;[cite: 3]
+    if (target.naturalWidth && target.naturalHeight) {[cite: 3]
+      setDimensions(prev => {[cite: 3]
+        if (prev[fileId]?.width === target.naturalWidth && prev[fileId]?.height === target.naturalHeight) {[cite: 3]
+          return prev;[cite: 3]
         }
         return {
           ...prev,
-          [fileId]: { width: target.naturalWidth, height: target.naturalHeight }[cite: 2]
+          [fileId]: { width: target.naturalWidth, height: target.naturalHeight }[cite: 3]
         };
       });
     }
   };
 
-  // Feature Add: Global Custom injection of optimized styling rules for CSS Masonry Grid layouts
   return (
     <div 
-      className="min-h-screen mesh-bg text-white relative overflow-hidden font-sans"[cite: 2]
-      onDragOver={handleDragOver}[cite: 2]
-      onDragLeave={handleDragLeave}[cite: 2]
-      onDrop={handleDrop}[cite: 2]
+      className="min-h-screen mesh-bg text-white relative overflow-hidden font-sans"[cite: 3]
+      onDragOver={handleDragOver}[cite: 3]
+      onDragLeave={handleDragLeave}[cite: 3]
+      onDrop={handleDrop}[cite: 3]
     >
-      <style>{`
-        .timeline-masonry-grid {
-          column-count: 2;
-          column-gap: 1.5rem;
-          width: 100%;
-        }
-        @media (min-width: 640px) { .timeline-masonry-grid { column-count: 3; } }
-        @media (min-width: 1024px) { .timeline-masonry-grid { column-count: 4; } }
-        @media (min-width: 1280px) { .timeline-masonry-grid { column-count: 6; } }
-        .timeline-masonry-item {
-          break-inside: avoid;
-          margin-bottom: 1.5rem;
-          display: block;
-        }
-      `}</style>
-
-      {isDragging && ([cite: 2]
-        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center border-4 border-dashed border-white/50 m-4 rounded-3xl pointer-events-none transition-all duration-300">[cite: 2]
-          <div className="text-3xl font-bold text-white flex flex-col items-center">[cite: 2]
-            <svg className="w-20 h-20 mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 2]
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />[cite: 2]
+      {isDragging && ([cite: 3]
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center border-4 border-dashed border-white/50 m-4 rounded-3xl pointer-events-none transition-all duration-300">[cite: 3]
+          <div className="text-3xl font-bold text-white flex flex-col items-center">[cite: 3]
+            <svg className="w-20 h-20 mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 3]
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />[cite: 3]
             </svg>
-            Drop photos here to upload[cite: 2]
+            Drop photos here to upload[cite: 3]
           </div>
         </div>
       )}
-      <div className="relative z-10 max-w-[1400px] mx-auto px-4 py-8">[cite: 2]
+      <div className="relative z-10 max-w-[1400px] mx-auto px-4 py-8">[cite: 3]
         {/* Header */}
-        <header className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 mb-6 sm:mb-10 glass-panel p-4 sm:p-3 sm:px-6 rounded-[2rem] sm:rounded-full animate-fade-in-up">[cite: 2]
-          <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-center sm:justify-start">[cite: 2]
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0">[cite: 2]
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 2]
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />[cite: 2]
+        <header className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 mb-6 sm:mb-10 glass-panel p-4 sm:p-3 sm:px-6 rounded-[2rem] sm:rounded-full animate-fade-in-up">[cite: 3]
+          <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-center sm:justify-start">[cite: 3]
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0">[cite: 3]
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 3]
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />[cite: 3]
               </svg>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Gallery</h1>[cite: 2]
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Gallery</h1>[cite: 3]
           </div>
           
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">[cite: 2]
-            <label className="premium-btn cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 !px-3 sm:!px-6 !py-1.5 sm:!py-2.5">[cite: 2]
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 2]
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />[cite: 2]
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">[cite: 3]
+            <label className="premium-btn cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 !px-3 sm:!px-6 !py-1.5 sm:!py-2.5">[cite: 3]
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 3]
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />[cite: 3]
               </svg>
-              <span className="text-sm sm:text-base whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>[cite: 2]
+              <span className="text-sm sm:text-base whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>[cite: 3]
               <input 
                 type="file" 
                 multiple 
                 className="hidden" 
-                ref={fileInputRef}[cite: 2]
-                onChange={handleUpload}[cite: 2]
-                disabled={uploading}[cite: 2]
+                ref={fileInputRef}[cite: 3]
+                onChange={handleUpload}[cite: 3]
+                disabled={uploading}[cite: 3]
               />
             </label>
             <button 
-              onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}[cite: 2]
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"[cite: 2]
+              onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}[cite: 3]
+              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"[cite: 3]
             >
-              {isSelectMode ? 'Cancel' : 'Select'}[cite: 2]
+              {isSelectMode ? 'Cancel' : 'Select'}[cite: 3]
             </button>
             <button 
-              onClick={() => setShowSettingsModal(true)}[cite: 2]
-              className="premium-btn !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"[cite: 2]
+              onClick={() => setShowSettingsModal(true)}[cite: 3]
+              className="premium-btn !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"[cite: 3]
               title="Settings"
             >
-              <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>[cite: 2]
+              <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>[cite: 3]
             </button>
           </div>
           
           {/* Tabs */}
-          <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-start sm:justify-center px-4 w-full sm:w-auto">[cite: 2]
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-start sm:justify-center px-4 w-full sm:w-auto">[cite: 3]
             <button 
-              onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); setIsSelectMode(false); }}[cite: 2]
-              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}[cite: 2]
+              onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); setIsSelectMode(false); }}[cite: 3]
+              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'photos' && currentFolderId === null ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}[cite: 3]
             >
               All Photos
             </button>
             <button 
-              onClick={() => { setActiveTab('albums'); setIsSelectMode(false); }}[cite: 2]
-              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'albums' ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}[cite: 2]
+              onClick={() => { setActiveTab('albums'); setIsSelectMode(false); }}[cite: 3]
+              className={`flex-shrink-0 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'albums' ? 'bg-white text-black shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}[cite: 3]
             >
               Albums
             </button>
             <button 
-              onClick={() => { setActiveTab('favorites'); setCurrentFolderId(null); setIsSelectMode(false); }}[cite: 2]
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'favorites' ? 'bg-red-500/10 text-red-500 shadow-lg shadow-red-500/10 scale-105 border border-red-500/20' : 'bg-white/5 text-red-400/70 hover:bg-red-500/10 hover:text-red-400'}`}[cite: 2]
+              onClick={() => { setActiveTab('favorites'); setCurrentFolderId(null); setIsSelectMode(false); }}[cite: 3]
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'favorites' ? 'bg-red-500/10 text-red-500 shadow-lg shadow-red-500/10 scale-105 border border-red-500/20' : 'bg-white/5 text-red-400/70 hover:bg-red-500/10 hover:text-red-400'}`}[cite: 3]
             >
-              <svg className="w-4 h-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>[cite: 2]
+              <svg className="w-4 h-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>[cite: 3]
               Favorites
             </button>
             <button 
-              onClick={() => { setActiveTab('trash'); setCurrentFolderId(null); setIsSelectMode(false); }}[cite: 2]
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'trash' ? 'bg-orange-500/10 text-orange-500 shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/20' : 'bg-white/5 text-orange-400/70 hover:bg-orange-500/10 hover:text-orange-400'}`}[cite: 2]
+              onClick={() => { setActiveTab('trash'); setCurrentFolderId(null); setIsSelectMode(false); }}[cite: 3]
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-md ${activeTab === 'trash' ? 'bg-orange-500/10 text-orange-500 shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/20' : 'bg-white/5 text-orange-400/70 hover:bg-orange-500/10 hover:text-orange-400'}`}[cite: 3]
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>[cite: 2]
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>[cite: 3]
               Trash
             </button>
           </div>
         </header>
 
         {/* Folder Header */}
-        {currentFolderId && ([cite: 2]
-          <div className="flex items-center space-x-4 mb-6 animate-fade-in-up">[cite: 2]
+        {currentFolderId && ([cite: 3]
+          <div className="flex items-center space-x-4 mb-6 animate-fade-in-up">[cite: 3]
             <button 
-              onClick={() => setCurrentFolderId(null)}[cite: 2]
-              className="bg-white/20 hover:bg-white/30 p-2 rounded-full backdrop-blur-md transition-colors"[cite: 2]
+              onClick={() => setCurrentFolderId(null)}[cite: 3]
+              className="bg-white/20 hover:bg-white/30 p-2 rounded-full backdrop-blur-md transition-colors"[cite: 3]
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>[cite: 2]
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>[cite: 3]
             </button>
             <h2 className="text-2xl font-bold">
-              {folders.find(f => f.id === currentFolderId)?.name || 'Album'}[cite: 2]
+              {folders.find(f => f.id === currentFolderId)?.name || 'Album'}[cite: 3]
             </h2>
           </div>
         )}
 
         {/* Progress Bar */}
-        {uploadProgress !== null && ([cite: 2]
-          <div className="w-full bg-white/10 rounded-full h-1.5 mb-6 overflow-hidden">[cite: 2]
+        {uploadProgress !== null && ([cite: 3]
+          <div className="w-full bg-white/10 rounded-full h-1.5 mb-6 overflow-hidden">[cite: 3]
             <div 
-              className="bg-blue-400 h-1.5 rounded-full transition-all duration-300 relative" [cite: 2]
-              style={{ width: `${uploadProgress}%` }}[cite: 2]
+              className="bg-blue-400 h-1.5 rounded-full transition-all duration-300 relative" [cite: 3]
+              style={{ width: `${uploadProgress}%` }}[cite: 3]
             >
-              <div className="absolute inset-0 bg-white/30 animate-pulse"></div>[cite: 2]
+              <div className="absolute inset-0 bg-white/30 animate-pulse"></div>[cite: 3]
             </div>
           </div>
         )}
 
         {/* Folders Grid */}
-        {activeTab === 'albums' && !currentFolderId && ([cite: 2]
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 animate-fade-in-up">[cite: 2]
+        {activeTab === 'albums' && !currentFolderId && ([cite: 3]
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 animate-fade-in-up">[cite: 3]
             <button 
-              onClick={() => setShowCreateModal(true)}[cite: 2]
-              className="aspect-square glass-panel rounded-[28px] border-2 border-dashed border-white/30 flex flex-col items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all cursor-pointer group"[cite: 2]
+              onClick={() => setShowCreateModal(true)}[cite: 3]
+              className="aspect-square glass-panel rounded-[28px] border-2 border-dashed border-white/30 flex flex-col items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all cursor-pointer group"[cite: 3]
             >
-              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">[cite: 2]
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>[cite: 2]
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">[cite: 3]
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>[cite: 3]
               </div>
-              <span className="font-semibold">New Album</span>[cite: 2]
+              <span className="font-semibold">New Album</span>[cite: 3]
             </button>
             
-            {folders.map((folder, idx) => ([cite: 2]
+            {folders.map((folder, idx) => ([cite: 3]
               <div 
-                key={folder.id} [cite: 2]
-                onClick={() => setCurrentFolderId(folder.id)}[cite: 2]
-                className="aspect-square glass-panel rounded-[28px] flex flex-col relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-transform duration-300"[cite: 2]
-                style={{ animationDelay: `${(idx % 10) * 0.05}s` }}[cite: 2]
+                key={folder.id} [cite: 3]
+                onClick={() => setCurrentFolderId(folder.id)}[cite: 3]
+                className="aspect-square glass-panel rounded-[28px] flex flex-col relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-transform duration-300"[cite: 3]
+                style={{ animationDelay: `${(idx % 10) * 0.05}s` }}[cite: 3]
               >
-                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/40 z-10 transition-opacity opacity-60 group-hover:opacity-40"></div>[cite: 2]
+                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/40 z-10 transition-opacity opacity-60 group-hover:opacity-40"></div>[cite: 3]
                 
-                {folder.cover_url ? ([cite: 2]
-                  <img src={folder.cover_url} alt="Cover" className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" />[cite: 2]
+                {folder.cover_url ? ([cite: 3]
+                  <img src={folder.cover_url} alt="Cover" className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" />[cite: 3]
                 ) : (
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity z-0">[cite: 2]
-                    <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>[cite: 2]
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-30 transition-opacity z-0">[cite: 3]
+                    <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>[cite: 3]
                   </div>
                 )}
                 
                 <button 
-                  onClick={(e) => handleDeleteFolder(e, folder.id)}[cite: 2]
-                  className="absolute top-3 right-3 z-20 bg-red-500/20 text-red-300 p-2 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all backdrop-blur-md"[cite: 2]
+                  onClick={(e) => handleDeleteFolder(e, folder.id)}[cite: 3]
+                  className="absolute top-3 right-3 z-20 bg-red-500/20 text-red-300 p-2 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all backdrop-blur-md"[cite: 3]
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>[cite: 2]
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>[cite: 3]
                 </button>
                 
-                <div className="mt-auto p-4 z-20 w-full flex justify-between items-end">[cite: 2]
-                  <span className="font-bold text-lg truncate w-full shadow-black drop-shadow-md">{folder.name}</span>[cite: 2]
+                <div className="mt-auto p-4 z-20 w-full flex justify-between items-end">[cite: 3]
+                  <span className="font-bold text-lg truncate w-full shadow-black drop-shadow-md">{folder.name}</span>[cite: 3]
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Files Grid styled through Masonry and split by Timeline */}
-        {(activeTab === 'photos' || activeTab === 'favorites' || activeTab === 'trash' || currentFolderId) && ([cite: 2]
+        {/* Files Grid */}
+        {(activeTab === 'photos' || activeTab === 'favorites' || activeTab === 'trash' || currentFolderId) && ([cite: 3]
           <PhotoSwipeGallery>
-            {activeTab === 'trash' && files.length > 0 && ([cite: 2]
-              <div className="flex justify-between items-center mb-6 w-full px-2">[cite: 2]
-                <span className="text-orange-400/80 text-sm font-medium">Items are permanently deleted after 30 days.</span>[cite: 2]
-                <button onClick={handleEmptyTrash} className="text-sm font-semibold text-red-400 hover:text-red-300 px-4 py-2 bg-red-500/10 rounded-full hover:bg-red-500/20 transition-all">[cite: 2]
-                  Empty Trash[cite: 2]
+            {activeTab === 'trash' && files.length > 0 && ([cite: 3]
+              <div className="flex justify-between items-center mb-6 w-full px-2">[cite: 3]
+                <span className="text-orange-400/80 text-sm font-medium">Items are permanently deleted after 30 days.</span>[cite: 3]
+                <button onClick={handleEmptyTrash} className="text-sm font-semibold text-red-400 hover:text-red-300 px-4 py-2 bg-red-500/10 rounded-full hover:bg-red-500/20 transition-all">[cite: 3]
+                  Empty Trash
                 </button>
               </div>
             )}
-
-            {initialLoading && ([cite: 2]
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                {Array.from({ length: 12 }).map((_, i) => ([cite: 2]
-                  <div 
-                    key={`skeleton-${i}`} [cite: 2]
-                    className="aspect-square glass-panel rounded-[28px] relative overflow-hidden animate-pulse bg-white/5"[cite: 2]
-                    style={{ animationDelay: `${(i % 10) * 0.1}s` }}[cite: 2]
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>[cite: 2]
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!initialLoading && files.length === 0 && ([cite: 2]
-              <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-500">[cite: 2]
-                <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 2]
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />[cite: 2]
-                </svg>
-                <p className="text-lg">No files yet. Upload some photos!</p>[cite: 2]
-              </div>
-            )}
-
-            {/* Loop through each Timeline chunk */}
-            {!initialLoading && groupedFiles.map((group) => (
-              <div key={group.date} className="mb-10 animate-fade-in-up">
-                <div className="flex items-center space-x-4 mb-4 sticky top-0 bg-slate-950/40 backdrop-blur-md py-2 z-40 rounded-xl px-2">
-                  <h3 className="text-lg font-bold text-slate-300 tracking-wide">{group.date}</h3>
-                  <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full text-slate-400 font-medium">
-                    {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
-                  </span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>[cite: 3]
+              
+              {initialLoading && Array.from({ length: 12 }).map((_, i) => ([cite: 3]
+                <div 
+                  key={`skeleton-${i}`} [cite: 3]
+                  className="aspect-square glass-panel rounded-[28px] relative overflow-hidden animate-pulse bg-white/5"[cite: 3]
+                  style={{ animationDelay: `${(i % 10) * 0.1}s` }}[cite: 3]
+                >
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>[cite: 3]
                 </div>
+              ))}
 
-                {/* CSS Columns Dynamic Masonry Wrapper */}
-                <div className="timeline-masonry-grid">
-                  {group.items.map((file, idx) => {
-                    const isImage = file.mime_type && file.mime_type.startsWith('image/');[cite: 2]
-                    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 2]
-                    const baseUrl = apiUrl.replace('/api/v1', '');[cite: 2]
-                    
-                    const fileUrl = (file.storage_path || '').startsWith('http') [cite: 2]
-                      ? (file.storage_path || '')[cite: 2]
-                      : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;[cite: 2]
-                      
-                    const resolveUrl = (url?: string) => {[cite: 2]
-                      if (!url) return fileUrl;[cite: 2]
-                      if (url.startsWith('http')) return url;[cite: 2]
-                      return `${baseUrl}${url}`;[cite: 2]
-                    };
+              {!initialLoading && files.length === 0 && ([cite: 3]
+                <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-500">[cite: 3]
+                  <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">[cite: 3]
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />[cite: 3]
+                  </svg>
+                  <p className="text-lg">No files yet. Upload some photos!</p>[cite: 3]
+                </div>
+              )}
+              
+              {!initialLoading && files.map((file, idx) => {
+                const isImage = file.mime_type && file.mime_type.startsWith('image/');[cite: 3]
+                const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';[cite: 3]
+                const baseUrl = apiUrl.replace('/api/v1', '');[cite: 3]
+                
+                const fileUrl = (file.storage_path || '').startsWith('http') [cite: 3]
+                  ? (file.storage_path || '')[cite: 3]
+                  : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;[cite: 3]
+                  
+                const resolveUrl = (url?: string) => {[cite: 3]
+                  if (!url) return fileUrl;[cite: 3]
+                  if (url.startsWith('http')) return url;[cite: 3]
+                  return `${baseUrl}${url}`;[cite: 3]
+                };
 
-                    const previewUrl = isImage ? resolveUrl(file.preview_url) : fileUrl;[cite: 2]
-                    const thumbnailUrl = isImage ? resolveUrl(file.thumbnail_url) : fileUrl;[cite: 2]
-                    const dim = dimensions[file.id] || { width: 1024, height: 768 }; [cite: 2]
-                    
-                    return (
-                      <div 
-                        key={file.id} [cite: 2]
-                        className="timeline-masonry-item group glass-panel rounded-[24px] flex flex-col items-center justify-center relative transition-all duration-500 hover:scale-[1.02] cursor-pointer overflow-hidden border border-white/5"
-                        style={{ animationDelay: `${(idx % 10) * 0.05}s` }}[cite: 2]
+                const previewUrl = isImage ? resolveUrl(file.preview_url) : fileUrl;[cite: 3]
+                const thumbnailUrl = isImage ? resolveUrl(file.thumbnail_url) : fileUrl;[cite: 3]
+                const dim = dimensions[file.id] || { width: 1024, height: 768 }; [cite: 3]
+                
+                return (
+                  <div 
+                    key={file.id} [cite: 3]
+                    className="group aspect-square glass-panel rounded-[28px] flex flex-col items-center justify-center relative transition-all duration-500 hover:scale-[1.02] cursor-pointer overflow-hidden animate-fade-in-up"[cite: 3]
+                    style={{ animationDelay: `${(idx % 10) * 0.05}s` }}[cite: 3]
+                  >
+                    {isImage ? ([cite: 3]
+                      <Item
+                        original={previewUrl}[cite: 3]
+                        thumbnail={thumbnailUrl}[cite: 3]
+                        width={dim.width > 2048 ? 2048 : dim.width}[cite: 3]
+                        height={dim.width > 2048 ? Math.round((dim.height / dim.width) * 2048) : dim.height}[cite: 3]
                       >
-                        {isImage ? ([cite: 2]
-                          <Item
-                            original={previewUrl}[cite: 2]
-                            thumbnail={thumbnailUrl}[cite: 2]
-                            width={dim.width > 2048 ? 2048 : dim.width}[cite: 2]
-                            height={dim.width > 2048 ? Math.round((dim.height / dim.width) * 2048) : dim.height}[cite: 2]
-                          >
-                            {({ ref, open }) => ([cite: 2]
-                              <div className="relative w-full overflow-hidden rounded-[24px]">
-                                <img 
-                                  ref={ref as any}  [cite: 2]
-                                  onClick={isSelectMode ? (e) => { e.stopPropagation(); toggleSelection(file.id); } : open} [cite: 2]
-                                  onLoad={(e) => handleImageLoad(e, file.id)}[cite: 2]
-                                  src={thumbnailUrl} [cite: 2]
-                                  alt={file.original_name} [cite: 2]
-                                  className={`w-full h-auto object-contain block transition-all duration-300 ${isSelectMode && selectedFileIds.has(file.id) ? 'scale-90 rounded-2xl opacity-70' : 'opacity-90 group-hover:opacity-100'}`}[cite: 2]
-                                  loading="lazy"[cite: 2]
-                                  onError={(e) => { (e.target as HTMLImageElement).src = fileUrl; }}[cite: 2]
-                                />
-                                {/* Favorite Button Overlay (hidden in trash) */}
-                                {activeTab !== 'trash' && ([cite: 2]
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(file.id); }}[cite: 2]
-                                    className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-300 z-30 ${file.is_favorite ? 'opacity-100 bg-white/20' : 'opacity-100 sm:opacity-0 group-hover:opacity-100 bg-black/20 hover:bg-black/40'}`}[cite: 2]
-                                  >
-                                    <svg className={`w-5 h-5 ${file.is_favorite ? 'text-red-500' : 'text-white/80'}`} fill={file.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>[cite: 2]
-                                  </button>
-                                )}
-                                
-                                {isSelectMode && ([cite: 2]
-                                  <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40 z-20 pointer-events-none">[cite: 2]
-                                    {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}[cite: 2]
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </Item>
-                        ) : (
-                          <div className="w-full aspect-square relative flex items-center justify-center">[cite: 2]
-                            <div className={`absolute inset-0 transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'bg-blue-500/20 scale-90 rounded-2xl' : 'bg-white/5 opacity-50 group-hover:opacity-100'}`} [cite: 2]
-                                 onClick={isSelectMode ? () => toggleSelection(file.id) : undefined}[cite: 2]
+                        {({ ref, open }) => ([cite: 3]
+                          <div className="relative w-full h-full">
+                            {/* Replaced with AuthImage to pass necessary token credentials on render or refresh */}
+                            <AuthImage 
+                              token={token}
+                              url={thumbnailUrl}
+                              alt={file.original_name}
+                              onLoad={(e) => handleImageLoad(e, file.id)}
+                              className={`absolute inset-0 w-full h-full object-cover transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'scale-90 rounded-2xl opacity-70' : 'opacity-90 group-hover:opacity-100'}`}
                             />
-                            <div className="relative z-10 flex flex-col items-center p-4 w-full h-full justify-between pointer-events-none">[cite: 2]
-                              <div className="flex-1 flex items-center justify-center">[cite: 2]
-                                <span className="text-5xl filter drop-shadow-md group-hover:scale-110 transition-transform duration-500">[cite: 2]
-                                  {file.original_name.endsWith('.pdf') ? '📄' : '🎬'}[cite: 2]
-                                </span>
-                              </div>
-                            </div>
-                            {isSelectMode && ([cite: 2]
-                              <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40 z-20 pointer-events-none">[cite: 2]
-                                {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}[cite: 2]
+                            {/* Attachment of internal container element reference for PhotoSwipe binding */}
+                            <div ref={ref as any} onClick={isSelectMode ? (e) => { e.stopPropagation(); toggleSelection(file.id); } : open} className="absolute inset-0 z-10" />
+
+                            {/* Favorite Button Overlay (hidden in trash) */}
+                            {activeTab !== 'trash' && ([cite: 3]
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(file.id); }}[cite: 3]
+                                className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-300 z-30 ${file.is_favorite ? 'opacity-100 bg-white/20' : 'opacity-100 sm:opacity-0 group-hover:opacity-100 bg-black/20 hover:bg-black/40'}`}[cite: 3]
+                              >
+                                <svg className={`w-5 h-5 ${file.is_favorite ? 'text-red-500' : 'text-white/80'}`} fill={file.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>[cite: 3]
+                              </button>
+                            )}
+                            
+                            {isSelectMode && ([cite: 3]
+                              <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40 z-20 pointer-events-none">[cite: 3]
+                                {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}[cite: 3]
                               </div>
                             )}
                           </div>
                         )}
-                        
-                        {activeTab === 'trash' ? ([cite: 2]
-                          <>
-                            <button 
-                              onClick={(e) => handlePermanentDelete(e, file.id)}[cite: 2]
-                              className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"[cite: 2]
-                              title="Delete Permanently"[cite: 2]
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 2]
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />[cite: 2]
-                              </svg>
-                            </button>
-                            
-                            <button 
-                              onClick={(e) => handleRestore(e, file.id)}[cite: 2]
-                              className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"[cite: 2]
-                              title="Restore"[cite: 2]
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 2]
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />[cite: 2]
-                              </svg>
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button 
-                              onClick={(e) => handleDelete(e, file.id)}[cite: 2]
-                              className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"[cite: 2]
-                              title="Delete Photo"[cite: 2]
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 2]
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />[cite: 2]
-                              </svg>
-                            </button>
-          
-                            <button 
-                              onClick={(e) => handleDownload(e, file.id, file.original_name)}[cite: 2]
-                              className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"[cite: 2]
-                              title="Download Original"[cite: 2]
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 2]
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />[cite: 2]
-                              </svg>
-                            </button>
-                            
-                            <div className="absolute bottom-3 left-3 right-3 bg-black/60 backdrop-blur-xl p-2 rounded-2xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 z-20 pointer-events-none border border-white/10">[cite: 2]
-                              <p className="text-xs truncate w-full text-center font-medium text-white/90" title={file.original_name}>[cite: 2]
-                                {file.original_name}[cite: 2]
-                              </p>
-                            </div>
-
-                            {/* Move Button */}
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); setMovingFileId(file.id); }}[cite: 2]
-                              className="absolute top-3 right-24 bg-blue-500/10 dark:bg-black/30 backdrop-blur-xl text-blue-500 dark:text-blue-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-blue-500/30 hover:bg-blue-500 hover:text-white hover:border-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.2)] active:scale-90"[cite: 2]
-                              title="Move to Album"[cite: 2]
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 2]
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7l-2 2m2-2l2 2m4-4h.01M16 11h.01M16 15h.01M16 19h.01" />[cite: 2]
-                              </svg>
-                            </button>
-                          </>
+                      </Item>
+                    ) : (
+                      <>
+                        <div className={`absolute inset-0 transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'bg-blue-500/20 scale-90 rounded-2xl' : 'bg-white/5 opacity-50 group-hover:opacity-100'}`} [cite: 3]
+                             onClick={isSelectMode ? () => toggleSelection(file.id) : undefined}[cite: 3]
+                        />
+                        <div className="relative z-10 flex flex-col items-center p-4 w-full h-full justify-between pointer-events-none">[cite: 3]
+                          <div className="flex-1 flex items-center justify-center">[cite: 3]
+                            <span className="text-5xl filter drop-shadow-md group-hover:scale-110 transition-transform duration-500">[cite: 3]
+                              {file.original_name.endsWith('.pdf') ? '📄' : '🎬'}[cite: 3]
+                            </span>
+                          </div>
+                        </div>
+                        {isSelectMode && ([cite: 3]
+                          <div className="absolute bottom-2 right-2 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center transition-all bg-black/40 z-20 pointer-events-none">[cite: 3]
+                            {selectedFileIds.has(file.id) && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full" />}[cite: 3]
+                          </div>
                         )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+                      </>
+                    )}
+                    
+                    {activeTab === 'trash' ? ([cite: 3]
+                      <>
+                        <button 
+                          onClick={(e) => handlePermanentDelete(e, file.id)}[cite: 3]
+                          className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"[cite: 3]
+                          title="Delete Permanently"[cite: 3]
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 3]
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />[cite: 3]
+                          </svg>
+                        </button>
+                        
+                        <button 
+                          onClick={(e) => handleRestore(e, file.id)}[cite: 3]
+                          className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"[cite: 3]
+                          title="Restore"[cite: 3]
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 3]
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />[cite: 3]
+                          </svg>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={(e) => handleDelete(e, file.id)}[cite: 3]
+                          className="absolute top-3 right-14 bg-red-500/10 dark:bg-black/30 backdrop-blur-xl text-red-500 dark:text-red-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-red-500/30 hover:bg-red-500 hover:text-white hover:border-red-400 shadow-[0_4px_12px_rgba(239,68,68,0.2)] active:scale-90"[cite: 3]
+                          title="Delete Photo"[cite: 3]
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 3]
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />[cite: 3]
+                          </svg>
+                        </button>
+      
+                        <button 
+                          onClick={(e) => handleDownload(e, file.id, file.original_name)}[cite: 3]
+                          className="absolute top-3 right-3 bg-white/20 dark:bg-black/30 backdrop-blur-xl text-slate-800 dark:text-white p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-white/40 dark:border-white/20 hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-90 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"[cite: 3]
+                          title="Download Original"[cite: 3]
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 3]
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />[cite: 3]
+                          </svg>
+                        </button>
+                        
+                        <div className="absolute bottom-3 left-3 right-3 bg-black/40 backdrop-blur-xl p-2 rounded-2xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 z-20 pointer-events-none border border-white/10">[cite: 3]
+                          <p className="text-xs truncate w-full text-center font-medium text-white/90" title={file.original_name}>[cite: 3]
+                            {file.original_name}[cite: 3]
+                          </p>
+                        </div>
+
+                        {/* Move Button */}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setMovingFileId(file.id); }}[cite: 3]
+                          className="absolute top-3 right-24 bg-blue-500/10 dark:bg-black/30 backdrop-blur-xl text-blue-500 dark:text-blue-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-blue-500/30 hover:bg-blue-500 hover:text-white hover:border-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.2)] active:scale-90"[cite: 3]
+                          title="Move to Album"[cite: 3]
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">[cite: 3]
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7l-2 2m2-2l2 2m4-4h.01M16 11h.01M16 15h.01M16 19h.01" />[cite: 3]
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
             
-            {!initialLoading && files.length > 0 && hasMore && ([cite: 2]
-              <div className="w-full flex justify-center mt-10 pb-8">[cite: 2]
+            {!initialLoading && files.length > 0 && hasMore && ([cite: 3]
+              <div className="w-full flex justify-center mt-10 pb-8">[cite: 3]
                 <button 
-                  onClick={() => setPage(p => p + 1)}[cite: 2]
-                  className="premium-btn !px-8 !py-3 font-semibold shadow-xl"[cite: 2]
+                  onClick={() => setPage(p => p + 1)}[cite: 3]
+                  className="premium-btn !px-8 !py-3 font-semibold shadow-xl"[cite: 3]
                 >
-                  Load More[cite: 2]
+                  Load More[cite: 3]
                 </button>
               </div>
             )}
@@ -2058,102 +2056,101 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       </div>
 
       {/* Move File Modal */}
-      {movingFileId && ([cite: 2]
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 2]
-          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 2]
-            <h3 className="text-xl font-bold mb-4 text-white">Move Photo to Album</h3>[cite: 2]
-            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">[cite: 2]
-              {currentFolderId && ([cite: 2]
+      {movingFileId && ([cite: 3]
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 3]
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 3]
+            <h3 className="text-xl font-bold mb-4 text-white">Move Photo to Album</h3>[cite: 3]
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">[cite: 3]
+              {currentFolderId && ([cite: 3]
                 <button
-                  onClick={() => handleMoveFile(movingFileId, null)}[cite: 2]
-                  className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white font-medium"[cite: 2]
+                  onClick={() => handleMoveFile(movingFileId, null)}[cite: 3]
+                  className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white font-medium"[cite: 3]
                 >
                   📁 All Photos (Root)
                 </button>
               )}
-              {folders.filter(f => f.id !== currentFolderId).map(folder => ([cite: 2]
+              {folders.filter(f => f.id !== currentFolderId).map(folder => ([cite: 3]
                 <button
-                  key={folder.id}[cite: 2]
-                  onClick={() => handleMoveFile(movingFileId, folder.id)}[cite: 2]
-                  className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white font-medium"[cite: 2]
+                  key={folder.id}[cite: 3]
+                  onClick={() => handleMoveFile(movingFileId, folder.id)}[cite: 3]
+                  className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white font-medium"[cite: 3]
                 >
-                  📁 {folder.name}[cite: 2]
+                  📁 {folder.name}[cite: 3]
                 </button>
               ))}
-              {folders.length === 0 && !currentFolderId && ([cite: 2]
-                <p className="text-white/50 text-center py-4">No albums created yet.</p>[cite: 2]
+              {folders.length === 0 && !currentFolderId && ([cite: 3]
+                <p className="text-white/50 text-center py-4">No albums created yet.</p>[cite: 3]
               )}
             </div>
             <button 
-              onClick={() => setMovingFileId(null)}[cite: 2]
-              className="w-full py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"[cite: 2]
+              onClick={() => setMovingFileId(null)}[cite: 3]
+              className="w-full py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"[cite: 3]
             >
-              Cancel[cite: 2]
+              Cancel[cite: 3]
             </button>
           </div>
         </div>
       )}
 
       {/* Create Folder Modal */}
-      {showCreateModal && ([cite: 2]
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 2]
-          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 2]
-            <h3 className="text-xl font-bold mb-4">Create New Album</h3>[cite: 2]
-            <form onSubmit={handleCreateFolder}>[cite: 2]
+      {showCreateModal && ([cite: 3]
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 3]
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 3]
+            <h3 className="text-xl font-bold mb-4">Create New Album</h3>[cite: 3]
+            <form onSubmit={handleCreateFolder}>[cite: 3]
               <input 
                 type="text" 
-                value={newFolderName}[cite: 2]
-                onChange={e => setNewFolderName(e.target.value)}[cite: 2]
-                placeholder="e.g. Summer Vacation"[cite: 2]
-                className="premium-input mb-6 w-full"[cite: 2]
-                autoFocus[cite: 2]
+                value={newFolderName}[cite: 3]
+                onChange={e => setNewFolderName(e.target.value)}[cite: 3]
+                placeholder="e.g. Summer Vacation"[cite: 3]
+                className="premium-input mb-6 w-full"[cite: 3]
+                autoFocus[cite: 3]
               />
-              <div className="flex space-x-3">[cite: 2]
+              <div className="flex space-x-3">[cite: 3]
                 <button 
                   type="button" 
-                  onClick={() => setShowCreateModal(false)}[cite: 2]
-                  className="flex-1 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors"[cite: 2]
+                  onClick={() => setShowCreateModal(false)}[cite: 3]
+                  className="flex-1 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors"[cite: 3]
                 >
-                  Cancel[cite: 2]
+                  Cancel[cite: 3]
                 </button>
                 <button 
                   type="submit" 
-                  disabled={!newFolderName.trim()}[cite: 2]
-                  className="flex-1 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"[cite: 2]
+                  disabled={!newFolderName.trim()}[cite: 3]
+                  className="flex-1 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"[cite: 3]
                 >
-                  Create[cite: 2]
+                  Create[cite: 3]
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
       {/* Change Password Modal */}
-      {showPasswordModal && ([cite: 2]
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 2]
-          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 2]
-            <h3 className="text-xl font-bold mb-4 text-white">Change Password</h3>[cite: 2]
-            <form onSubmit={handleChangePassword}>[cite: 2]
+      {showPasswordModal && ([cite: 3]
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 3]
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 3]
+            <h3 className="text-xl font-bold mb-4 text-white">Change Password</h3>[cite: 3]
+            <form onSubmit={handleChangePassword}>[cite: 3]
               <input 
                 type="password" 
-                value={passwordForm.old}[cite: 2]
-                onChange={e => setPasswordForm({...passwordForm, old: e.target.value})}[cite: 2]
-                placeholder="Current Password"[cite: 2]
-                className="premium-input mb-4 w-full"[cite: 2]
-                required[cite: 2]
+                value={passwordForm.old}[cite: 3]
+                onChange={e => setPasswordForm({...passwordForm, old: e.target.value})}[cite: 3]
+                placeholder="Current Password"[cite: 3]
+                className="premium-input mb-4 w-full"[cite: 3]
+                required[cite: 3]
               />
               <input 
                 type="password" 
-                value={passwordForm.new}[cite: 2]
-                onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}[cite: 2]
-                placeholder="New Password"[cite: 2]
-                className="premium-input mb-6 w-full"[cite: 2]
-                required[cite: 2]
+                value={passwordForm.new}[cite: 3]
+                onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}[cite: 3]
+                placeholder="New Password"[cite: 3]
+                className="premium-input mb-6 w-full"[cite: 3]
+                required[cite: 3]
               />
-              <div className="flex space-x-3">[cite: 2]
-                <button type="button" onClick={() => setShowPasswordModal(false)} className="flex-1 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white">Cancel</button>[cite: 2]
-                <button type="submit" disabled={!passwordForm.old || !passwordForm.new} className="flex-1 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50">Save</button>[cite: 2]
+              <div className="flex space-x-3">[cite: 3]
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="flex-1 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white">Cancel</button>[cite: 3]
+                <button type="submit" disabled={!passwordForm.old || !passwordForm.new} className="flex-1 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50">Save</button>[cite: 3]
               </div>
             </form>
           </div>
@@ -2161,51 +2158,51 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
       )}
 
       {/* Settings Modal */}
-      {showSettingsModal && ([cite: 2]
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 2]
-          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 2]
-            <h3 className="text-xl font-bold mb-6 text-white text-center">Settings</h3>[cite: 2]
-            <div className="space-y-3">[cite: 2]
+      {showSettingsModal && ([cite: 3]
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">[cite: 3]
+          <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">[cite: 3]
+            <h3 className="text-xl font-bold mb-6 text-white text-center">Settings</h3>[cite: 3]
+            <div className="space-y-3">[cite: 3]
               <button 
-                onClick={() => { setShowSettingsModal(false); setShowPasswordModal(true); }}[cite: 2]
-                className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 font-medium transition-colors text-white flex items-center justify-between"[cite: 2]
+                onClick={() => { setShowSettingsModal(false); setShowPasswordModal(true); }}[cite: 3]
+                className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 font-medium transition-colors text-white flex items-center justify-between"[cite: 3]
               >
-                <span>Change Password</span>[cite: 2]
-                <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>[cite: 2]
+                <span>Change Password</span>[cite: 3]
+                <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>[cite: 3]
               </button>
               
               <button 
-                onClick={onLogout} [cite: 2]
-                className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 font-medium transition-colors text-white flex items-center justify-between"[cite: 2]
+                onClick={onLogout} [cite: 3]
+                className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 font-medium transition-colors text-white flex items-center justify-between"[cite: 3]
               >
-                <span>Log Out</span>[cite: 2]
-                <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>[cite: 2]
+                <span>Log Out</span>[cite: 3]
+                <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>[cite: 3]
               </button>
 
               <button 
-                onClick={handleDeleteAccount} [cite: 2]
-                className="w-full py-3 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 font-medium transition-colors text-red-400 flex items-center justify-between border border-red-500/20"[cite: 2]
+                onClick={handleDeleteAccount} [cite: 3]
+                className="w-full py-3 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 font-medium transition-colors text-red-400 flex items-center justify-between border border-red-500/20"[cite: 3]
               >
-                <span>Delete Account</span>[cite: 2]
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>[cite: 2]
+                <span>Delete Account</span>[cite: 3]
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>[cite: 3]
               </button>
             </div>
             <button 
-              onClick={() => setShowSettingsModal(false)}[cite: 2]
-              className="w-full mt-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"[cite: 2]
+              onClick={() => setShowSettingsModal(false)}[cite: 3]
+              className="w-full mt-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"[cite: 3]
             >
-              Close[cite: 2]
+              Close[cite: 3]
             </button>
           </div>
         </div>
       )}
 
       {/* Floating Bulk Action Bar */}
-      {isSelectMode && selectedFileIds.size > 0 && ([cite: 2]
-        <div className="fixed bottom-6 left-4 right-4 sm:bottom-10 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 glass-panel p-3 sm:p-4 rounded-2xl sm:rounded-full flex items-center justify-between sm:justify-start gap-4 animate-fade-in-up shadow-2xl border border-white/20">[cite: 2]
-          <span className="font-bold text-white/90 pl-2 whitespace-nowrap text-sm sm:text-base">{selectedFileIds.size} Selected</span>[cite: 2]
-          <button onClick={() => setMovingFileId('BULK')} className="premium-btn !py-2 !px-4 sm:!py-2.5 sm:!px-6 !bg-blue-500/80 hover:!bg-blue-500 !text-white shadow-lg whitespace-nowrap text-sm sm:text-base">[cite: 2]
-            Move To Album[cite: 2]
+      {isSelectMode && selectedFileIds.size > 0 && ([cite: 3]
+        <div className="fixed bottom-6 left-4 right-4 sm:bottom-10 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 glass-panel p-3 sm:p-4 rounded-2xl sm:rounded-full flex items-center justify-between sm:justify-start gap-4 animate-fade-in-up shadow-2xl border border-white/20">[cite: 3]
+          <span className="font-bold text-white/90 pl-2 whitespace-nowrap text-sm sm:text-base">{selectedFileIds.size} Selected</span>[cite: 3]
+          <button onClick={() => setMovingFileId('BULK')} className="premium-btn !py-2 !px-4 sm:!py-2.5 sm:!px-6 !bg-blue-500/80 hover:!bg-blue-500 !text-white shadow-lg whitespace-nowrap text-sm sm:text-base">[cite: 3]
+            Move To Album
           </button>
         </div>
       )}
