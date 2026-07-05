@@ -42,8 +42,8 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/thumbnails', express.static(UPLOADS_DIR)); // Fallback serving original as thumbnail
 app.use('/previews', express.static(UPLOADS_DIR));   // Fallback serving original as preview
 
-// Middleware to protect routes via JWT
-const authenticate = (req: any, res: any, next: any) => {
+// Middleware to protect routes via JWT (now fully asynchronous)
+const authenticate = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -55,7 +55,7 @@ const authenticate = (req: any, res: any, next: any) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const user = db.getUserById(userId);
+  const user = await db.getUserById(userId);
   if (!user || !user.is_active) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -122,16 +122,17 @@ httpServer.on('upgrade', (request, socket, head) => {
 // ==================== AUTH API ENDPOINTS ====================
 
 // Support urlencoded because of URLSearchParams used in client
-app.post('/api/v1/auth/login', (req, res) => {
+app.post('/api/v1/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password required' });
   }
 
-  let user = db.getUserByUsername(username);
+  let user = await db.getUserByUsername(username);
   if (!user) {
     // Graceful auto-registration for any new user logged in for the first time
-    const isFirst = db.getUsers().length === 0;
+    const users = await db.getUsers();
+    const isFirst = users.length === 0;
     user = {
       id: crypto.randomUUID(),
       username,
@@ -142,7 +143,7 @@ app.post('/api/v1/auth/login', (req, res) => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    db.addUser(user);
+    await db.addUser(user);
     console.log(`Auto-registered new user: ${username}`);
   } else {
     if (!comparePassword(password, user.password_hash)) {
@@ -167,7 +168,7 @@ app.get('/api/v1/auth/me', authenticate, (req: any, res) => {
   });
 });
 
-app.put('/api/v1/auth/change-password', authenticate, (req: any, res) => {
+app.put('/api/v1/auth/change-password', authenticate, async (req: any, res) => {
   const { old_password, new_password } = req.body;
   if (!old_password || !new_password) {
     return res.status(400).json({ error: 'Old and new passwords required' });
@@ -179,21 +180,22 @@ app.put('/api/v1/auth/change-password', authenticate, (req: any, res) => {
 
   req.user.password_hash = hashPassword(new_password);
   req.user.updated_at = new Date().toISOString();
-  db.save();
+  await db.updateFile(req.user); // updateFile handles any schema modifications or we can just save
+  await db.save();
 
   res.json({ status: 'success' });
 });
 
-app.delete('/api/v1/auth/me', authenticate, (req: any, res) => {
-  db.removeUser(req.user.id);
+app.delete('/api/v1/auth/me', authenticate, async (req: any, res) => {
+  await db.removeUser(req.user.id);
   res.status(204).end();
 });
 
 // ==================== ALBUM (FOLDER) API ENDPOINTS ====================
 
-app.get('/api/v1/folders', authenticate, (req: any, res) => {
-  const folders = db.getFolders(req.user.id);
-  const files = db.getFiles(req.user.id).filter(f => f.deleted_at === null);
+app.get('/api/v1/folders', authenticate, async (req: any, res) => {
+  const folders = await db.getFolders(req.user.id);
+  const files = (await db.getFiles(req.user.id)).filter(f => f.deleted_at === null);
 
   const result = folders.map(f => {
     // Find latest image in this folder for the cover url
@@ -213,7 +215,7 @@ app.get('/api/v1/folders', authenticate, (req: any, res) => {
   res.json(result);
 });
 
-app.post('/api/v1/folders', authenticate, (req: any, res) => {
+app.post('/api/v1/folders', authenticate, async (req: any, res) => {
   const { name, parent_id } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Album name required' });
@@ -227,12 +229,12 @@ app.post('/api/v1/folders', authenticate, (req: any, res) => {
     created_at: new Date().toISOString(),
   };
 
-  db.addFolder(folder);
+  await db.addFolder(folder);
   res.status(201).json(folder);
 });
 
-app.delete('/api/v1/folders/:id', authenticate, (req: any, res) => {
-  db.removeFolder(req.params.id, req.user.id);
+app.delete('/api/v1/folders/:id', authenticate, async (req: any, res) => {
+  await db.removeFolder(req.params.id, req.user.id);
   res.status(204).end();
 });
 
@@ -254,11 +256,10 @@ const handleUpload = async (req: any, res: any) => {
     const file_hash = crypto.createHash('sha256').update(fileContent).digest('hex');
 
     // Check duplicate
-    const files = db.getFiles(req.user.id).filter(f => f.deleted_at === null);
+    const files = (await db.getFiles(req.user.id)).filter(f => f.deleted_at === null);
     const existing = files.find(f => f.sha256 === file_hash);
     if (existing) {
       fs.unlinkSync(file.path);
-      uploaded_files_info.append?.({"filename": file.originalname, "status": "duplicate", "id": existing.id});
       uploaded_files_info.push({"filename": file.originalname, "status": "duplicate", "id": existing.id});
       continue;
     }
@@ -289,7 +290,7 @@ const handleUpload = async (req: any, res: any) => {
       updated_at: new Date().toISOString(),
     };
 
-    db.addFile(fileRecord);
+    await db.addFile(fileRecord);
 
     // Broadcast WebSocket
     broadcastToUser(req.user.id, {
@@ -314,13 +315,13 @@ const handleUpload = async (req: any, res: any) => {
 app.post('/api/v1/files', authenticate, upload.any(), handleUpload);
 app.post('/api/v1/files/', authenticate, upload.any(), handleUpload);
 
-app.get('/api/v1/files', authenticate, (req: any, res) => {
+app.get('/api/v1/files', authenticate, async (req: any, res) => {
   const folder_id = req.query.folder_id || null;
   const is_favorite = req.query.is_favorite === 'true';
   const skip = parseInt(req.query.skip as string) || 0;
   const limit = parseInt(req.query.limit as string) || 50;
 
-  let files = db.getFiles(req.user.id).filter(f => f.deleted_at === null);
+  let files = (await db.getFiles(req.user.id)).filter(f => f.deleted_at === null);
 
   if (is_favorite) {
     files = files.filter(f => f.is_favorite);
@@ -347,11 +348,11 @@ app.get('/api/v1/files', authenticate, (req: any, res) => {
 });
 
 // Recycle Bin lists
-app.get('/api/v1/files/trash/list', authenticate, (req: any, res) => {
+app.get('/api/v1/files/trash/list', authenticate, async (req: any, res) => {
   const skip = parseInt(req.query.skip as string) || 0;
   const limit = parseInt(req.query.limit as string) || 50;
 
-  const files = db.getFiles(req.user.id).filter(f => f.deleted_at !== null);
+  const files = (await db.getFiles(req.user.id)).filter(f => f.deleted_at !== null);
 
   files.sort((a, b) => {
     const timeA = new Date(a.deleted_at!).getTime();
@@ -368,21 +369,22 @@ app.get('/api/v1/files/trash/list', authenticate, (req: any, res) => {
   res.json(responsePage);
 });
 
-app.put('/api/v1/files/trash/:id/restore', authenticate, (req: any, res) => {
-  const file = db.getFileById(req.params.id, req.user.id);
+app.put('/api/v1/files/trash/:id/restore', authenticate, async (req: any, res) => {
+  const file = await db.getFileById(req.params.id, req.user.id);
   if (!file) {
     return res.status(404).json({ error: 'File not found' });
   }
 
   file.deleted_at = null;
   file.updated_at = new Date().toISOString();
-  db.save();
+  await db.updateFile(file);
+  await db.save();
 
   res.json({ status: 'ok' });
 });
 
-app.delete('/api/v1/files/trash/empty', authenticate, (req: any, res) => {
-  const files = db.getFiles(req.user.id).filter(f => f.deleted_at !== null);
+app.delete('/api/v1/files/trash/empty', authenticate, async (req: any, res) => {
+  const files = (await db.getFiles(req.user.id)).filter(f => f.deleted_at !== null);
 
   for (const file of files) {
     const filepath = path.join(UPLOADS_DIR, file.stored_name);
@@ -391,14 +393,14 @@ app.delete('/api/v1/files/trash/empty', authenticate, (req: any, res) => {
         fs.unlinkSync(filepath);
       } catch (e) {}
     }
-    db.removeFile(file.id, req.user.id);
+    await db.removeFile(file.id, req.user.id);
   }
 
   res.json({ status: 'ok', deleted_count: files.length });
 });
 
-app.delete('/api/v1/files/trash/:id/permanent', authenticate, (req: any, res) => {
-  const file = db.getFileById(req.params.id, req.user.id);
+app.delete('/api/v1/files/trash/:id/permanent', authenticate, async (req: any, res) => {
+  const file = await db.getFileById(req.params.id, req.user.id);
   if (!file || file.deleted_at === null) {
     return res.status(404).json({ error: 'File not found in trash' });
   }
@@ -410,25 +412,26 @@ app.delete('/api/v1/files/trash/:id/permanent', authenticate, (req: any, res) =>
     } catch (e) {}
   }
 
-  db.removeFile(file.id, req.user.id);
+  await db.removeFile(file.id, req.user.id);
   res.status(204).end();
 });
 
-app.delete('/api/v1/files/:id', authenticate, (req: any, res) => {
-  const file = db.getFileById(req.params.id, req.user.id);
+app.delete('/api/v1/files/:id', authenticate, async (req: any, res) => {
+  const file = await db.getFileById(req.params.id, req.user.id);
   if (!file) {
     return res.status(404).json({ error: 'File not found' });
   }
 
   file.deleted_at = new Date().toISOString();
   file.updated_at = new Date().toISOString();
-  db.save();
+  await db.updateFile(file);
+  await db.save();
 
   res.status(204).end();
 });
 
-app.put('/api/v1/files/:id/move', authenticate, (req: any, res) => {
-  const file = db.getFileById(req.params.id, req.user.id);
+app.put('/api/v1/files/:id/move', authenticate, async (req: any, res) => {
+  const file = await db.getFileById(req.params.id, req.user.id);
   if (!file) {
     return res.status(404).json({ error: 'File not found' });
   }
@@ -436,36 +439,38 @@ app.put('/api/v1/files/:id/move', authenticate, (req: any, res) => {
   const { folder_id } = req.body;
   file.folder_id = folder_id || null;
   file.updated_at = new Date().toISOString();
-  db.save();
+  await db.updateFile(file);
+  await db.save();
 
   res.json({ status: 'ok' });
 });
 
-app.put('/api/v1/files/bulk/move', authenticate, (req: any, res) => {
+app.put('/api/v1/files/bulk/move', authenticate, async (req: any, res) => {
   const { file_ids, folder_id } = req.body;
   if (!Array.isArray(file_ids)) {
     return res.status(400).json({ error: 'file_ids array is required' });
   }
 
-  db.bulkMoveFiles(file_ids, folder_id || null, req.user.id);
+  await db.bulkMoveFiles(file_ids, folder_id || null, req.user.id);
   res.json({ status: 'ok' });
 });
 
-app.put('/api/v1/files/:id/favorite', authenticate, (req: any, res) => {
-  const file = db.getFileById(req.params.id, req.user.id);
+app.put('/api/v1/files/:id/favorite', authenticate, async (req: any, res) => {
+  const file = await db.getFileById(req.params.id, req.user.id);
   if (!file) {
     return res.status(404).json({ error: 'File not found' });
   }
 
   file.is_favorite = !file.is_favorite;
   file.updated_at = new Date().toISOString();
-  db.save();
+  await db.updateFile(file);
+  await db.save();
 
   res.json({ status: 'ok', is_favorite: file.is_favorite });
 });
 
-app.get('/api/v1/files/download/:id', authenticate, (req: any, res) => {
-  const file = db.getFileById(req.params.id, req.user.id);
+app.get('/api/v1/files/download/:id', authenticate, async (req: any, res) => {
+  const file = await db.getFileById(req.params.id, req.user.id);
   if (!file) {
     return res.status(404).json({ error: 'File not found' });
   }
@@ -489,6 +494,9 @@ app.head('/', (req, res) => {
 
 // ==================== VITE & CLIENT ROUTING MIDDLEWARE ====================
 async function start() {
+  // Initialize unified database layer dynamically before launching server
+  await db.init();
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
