@@ -50,6 +50,23 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
   const [dimensions, setDimensions] = useState<Record<string, {width: number, height: number}>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const fetchFolders = useCallback(async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const response = await fetch(`${apiUrl}/folders/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFolders(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch folders", err);
+    }
+  }, [token]);
+
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
     try {
       if (pageNum === 0) setInitialLoading(true);
@@ -100,15 +117,14 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     if (activeTab === 'albums' && currentFolderId === null) {
       fetchFolders();
     }
-    // Also fetch folders if we need them for the Move modal
-    if (folders.length === 0) fetchFolders();
-  }, [currentFolderId, activeTab]);
+    fetchFolders();
+  }, [currentFolderId, activeTab, fetchFiles, fetchFolders]);
 
   useEffect(() => {
     if (page > 0) {
       fetchFiles(currentFolderId, page);
     }
-  }, [page]);
+  }, [page, currentFolderId, fetchFiles]);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -133,30 +149,12 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
     connectWs();
 
     return () => {
-      
       if (ws) {
         ws.onclose = null;
         ws.close();
       }
     };
   }, [token, currentFolderId, fetchFiles]);
-
-  const fetchFolders = async () => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
-      const response = await fetch(`${apiUrl}/folders/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setFolders(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch folders", err);
-    }
-  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -231,7 +229,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
           formData.append("date_taken", exifData.DateTimeOriginal.toISOString());
         }
       } catch (e) {
-        // silently ignore EXIF parsing errors
+        // ignore
       }
 
       if (currentFolderId) {
@@ -822,7 +820,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onLogout }) => {
                         <div className="relative z-10 flex flex-col items-center p-4 w-full h-full justify-between pointer-events-none">
                           <div className="flex-1 flex items-center justify-center">
                             <span className="text-5xl filter drop-shadow-md group-hover:scale-110 transition-transform duration-500">
-                              {file.original_name.endsWith('.pdf') ? '📄' : '📁'}
+                              {file.original_name.endsWith('.pdf') ? '📄' : '🎬'}
                             </span>
                           </div>
                         </div>
