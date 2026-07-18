@@ -25,7 +25,7 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const res = await fetch(`${apiUrl}/targets/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -64,9 +64,9 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
     try {
       const res = await fetch(url, {
         method,
+        credentials: 'include',
         headers: { 
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
         },
         body: JSON.stringify({
           provider_type: formData.provider_type,
