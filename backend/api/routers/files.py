@@ -289,6 +289,27 @@ def get_storage_usage(current_user: User = Depends(get_current_user), db: Sessio
     limit = 150 * 1024 * 1024
     return {"used": used or 0, "limit": limit}
 
+@router.get("/admin/stats")
+def get_admin_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role.value != "ADMIN":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Admin only")
+    from sqlalchemy import func
+    stats = db.query(
+        User.username, 
+        func.count(DBFile.id).label('file_count'),
+        func.sum(DBFile.file_size).label('total_size')
+    ).outerjoin(DBFile, DBFile.owner_id == User.id).group_by(User.username).all()
+    
+    return [
+        {
+            "username": row[0],
+            "file_count": row[1] or 0,
+            "total_size_mb": round((row[2] or 0) / (1024 * 1024), 2)
+        }
+        for row in stats
+    ]
+
 @router.get("/")
 def list_files(
     folder_id: Optional[str] = None,
