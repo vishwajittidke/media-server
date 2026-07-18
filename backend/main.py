@@ -53,6 +53,40 @@ except Exception as e:
 # NOTE: Render uses ephemeral disks — local files won't exist after a redeploy.
 # We now use the database (`file_data` table) to persist files securely.
 
+# ── Auto-Migrate legacy Supabase .env to Targets ─────────────────────────────
+try:
+    from database import SessionLocal
+    from models import User, StorageTarget, ProviderTypeEnum, RoleEnum, File
+    from core.security import encrypt_credentials
+    
+    with SessionLocal() as db_session:
+        admin_user = db_session.query(User).filter(User.role == RoleEnum.ADMIN).first()
+        if admin_user:
+            existing = db_session.query(StorageTarget).filter(StorageTarget.owner_id == admin_user.id).first()
+            if not existing and settings.SUPABASE_URL and settings.SUPABASE_SERVICE_KEY:
+                creds = {
+                    "supabase_url": settings.SUPABASE_URL,
+                    "supabase_key": settings.SUPABASE_SERVICE_KEY,
+                    "supabase_bucket": settings.SUPABASE_BUCKET
+                }
+                encrypted = encrypt_credentials(creds)
+                target = StorageTarget(
+                    owner_id=admin_user.id,
+                    provider_type=ProviderTypeEnum.SUPABASE,
+                    connection_name="Default Supabase (Auto-Migrated)",
+                    encrypted_credentials=encrypted,
+                    is_active=True
+                )
+                db_session.add(target)
+                db_session.commit()
+                db_session.refresh(target)
+                
+                db_session.query(File).update({File.target_id: target.id})
+                db_session.commit()
+                print("✅ Auto-migrated legacy Supabase config to Target!")
+except Exception as e:
+    print(f"Auto-migration failed: {e}")
+
 # ── App setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title=settings.PROJECT_NAME)
 app.state.limiter = limiter
