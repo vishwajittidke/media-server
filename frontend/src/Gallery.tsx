@@ -241,6 +241,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     let totalLoaded = 0;
     
     const totalSize = fileList.reduce((acc, file) => acc + file.size, 0);
+    let storageLimitHit = false;
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
@@ -276,6 +277,12 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             totalLoaded += file.size;
+            try {
+              const res = JSON.parse(xhr.responseText);
+              if (res.storage_full) {
+                storageLimitHit = true;
+              }
+            } catch (e) {}
             resolve();
           } else {
             console.error(`Upload failed for ${file.name} with status`, xhr.status);
@@ -290,6 +297,10 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
         xhr.send(formData);
       });
+    }
+
+    if (storageLimitHit) {
+      alert("Storage limit exceeded! You have reached your 150 MB limit. Any files beyond the limit were not uploaded.");
     }
 
     setPage(0);

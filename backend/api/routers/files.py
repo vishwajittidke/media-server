@@ -127,6 +127,14 @@ async def upload_files(
 
     uploaded_files_info = []
 
+    # ── Storage limit check ──────────────────────────────────────────────
+    from sqlalchemy import func as sa_func
+    STORAGE_LIMIT = 150 * 1024 * 1024  # 150 MB
+    current_usage = db.query(sa_func.sum(DBFile.file_size)).filter(
+        DBFile.owner_id == current_user.id, DBFile.deleted_at == None
+    ).scalar() or 0
+    storage_full = False
+
     for file in files:
         original_name = file.filename or "unknown"
         _, ext = os.path.splitext(original_name)
@@ -146,6 +154,17 @@ async def upload_files(
             raw_bytes = await file.read()
             file_hash = get_file_hash(raw_bytes)
             file_size = len(raw_bytes)
+
+            # ── Reject if this file would exceed the storage limit ────────
+            if current_usage + file_size > STORAGE_LIMIT:
+                storage_full = True
+                remaining_mb = max(0, (STORAGE_LIMIT - current_usage)) / (1024 * 1024)
+                uploaded_files_info.append({
+                    "filename": original_name,
+                    "status": "storage_exceeded",
+                    "detail": f"Storage limit exceeded. {remaining_mb:.1f} MB remaining."
+                })
+                continue
 
             # Duplicate check (ignores soft-deleted records)
             existing = db.query(DBFile).filter(
@@ -270,13 +289,14 @@ async def upload_files(
                 pass
 
             uploaded_files_info.append({"filename": original_name, "status": "success", "id": db_file.id})
+            current_usage += file_size
 
         except Exception as e:
             import traceback
             traceback.print_exc()
             uploaded_files_info.append({"filename": original_name, "status": "error", "detail": str(e)})
 
-    return {"uploaded": uploaded_files_info}
+    return {"uploaded": uploaded_files_info, "storage_full": storage_full}
 
 
 # ── List files ───────────────────────────────────────────────────────────────
