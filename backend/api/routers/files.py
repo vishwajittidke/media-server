@@ -336,6 +336,7 @@ def list_files(
 # ── Download original quality ────────────────────────────────────────────────
 
 @router.get("/download/{file_id}")
+@router.get("/{file_id}/download")
 def download_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
