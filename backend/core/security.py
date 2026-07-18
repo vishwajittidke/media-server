@@ -26,7 +26,11 @@ import json
 
 def get_fernet() -> Fernet:
     if not settings.MASTER_ENCRYPTION_KEY:
-        raise ValueError("MASTER_ENCRYPTION_KEY is not set in environment. Cannot encrypt/decrypt credentials.")
+        import base64
+        import hashlib
+        key = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
+        fernet_key = base64.urlsafe_b64encode(key)
+        return Fernet(fernet_key)
     return Fernet(settings.MASTER_ENCRYPTION_KEY.encode('utf-8'))
 
 def encrypt_credentials(creds_dict: dict) -> str:
