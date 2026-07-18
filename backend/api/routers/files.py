@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile, Form, Request, status
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -347,9 +347,23 @@ def download_file(
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # If stored on Supabase, redirect to the original public URL
+    # If stored on Supabase, proxy the file stream to avoid frontend CORS issues
     if db_file.storage_path and db_file.storage_path.startswith("http"):
-        return RedirectResponse(url=db_file.storage_path)
+        def iterfile():
+            with requests.get(db_file.storage_path, stream=True) as r:
+                if r.status_code != 200:
+                    raise HTTPException(status_code=404, detail="File not found in remote storage")
+                for chunk in r.iter_content(chunk_size=8192):
+                    yield chunk
+
+        return StreamingResponse(
+            iterfile(),
+            media_type=db_file.mime_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{db_file.original_name}"',
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
 
     # Local fallback: Use the smart serve_file logic which handles DB recovery
     return serve_file(db_file.stored_name, "original", settings.UPLOADS_DIR, db)
