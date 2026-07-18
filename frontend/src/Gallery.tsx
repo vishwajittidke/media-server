@@ -59,6 +59,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [storageData, setStorageData] = useState<{used: number, limit: number} | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -113,17 +114,28 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     }
   }, [activeTab, onLogout, debouncedSearch]);
 
+  const fetchStorage = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const response = await fetch(`${apiUrl}/files/storage`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setStorageData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching storage:", error);
+    }
+  };
+
   useEffect(() => {
     setPage(0);
     setHasMore(true);
     fetchFiles(currentFolderId, 0);
-    
-    if (activeTab === 'albums' && currentFolderId === null) {
-      if (folders.length === 0) fetchFolders();
-    } else if (folders.length === 0) {
+    if (activeTab === 'photos' || activeTab === 'albums') {
       fetchFolders();
     }
-  }, [currentFolderId, activeTab, debouncedSearch]);
+    fetchStorage();
+  }, [currentFolderId, activeTab, debouncedSearch, fetchFiles]);
 
   useEffect(() => {
     if (page > 0) {
@@ -670,6 +682,26 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             </div>
           </div>
           
+          {storageData && (
+            <div className="hidden xl:flex items-center gap-2 mx-4 text-xs font-medium bg-white/5 border border-white/10 rounded-full py-1.5 px-3 backdrop-blur-md">
+              <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+              </svg>
+              <div className="w-20 h-1.5 bg-white/20 rounded-full overflow-hidden shrink-0">
+                <div 
+                  className={`h-full rounded-full transition-all ${
+                    (storageData.used / storageData.limit) > 0.9 ? 'bg-red-500' : 
+                    (storageData.used / storageData.limit) > 0.75 ? 'bg-yellow-400' : 'bg-blue-400'
+                  }`}
+                  style={{ width: `${Math.min(100, (storageData.used / storageData.limit) * 100)}%` }} 
+                />
+              </div>
+              <span className="text-white/70 whitespace-nowrap">
+                {(storageData.used / (1024 * 1024)).toFixed(1)} / {(storageData.limit / (1024 * 1024)).toFixed(0)} MB
+              </span>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">
             <label className="premium-btn cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 !px-3 sm:!px-6 !py-1.5 sm:!py-2.5">
               <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
