@@ -33,9 +33,21 @@ except Exception as e:
     print(f"Migration note (may already exist): {e}")
 
 
-# NOTE: Do NOT add any "cleanup" or "orphan removal" logic here.
-# Render uses ephemeral disks — local files won't exist after a redeploy.
-# Deleting DB records based on missing local files would destroy ALL photo metadata.
+# ── Cleanup Ghost Files ──────────────────────────────────────────────────────
+# Delete old files that were lost to the ephemeral disk wipe before the FileData fix
+try:
+    with engine.connect() as conn:
+        conn.execute(text("""
+            DELETE FROM files 
+            WHERE storage_path LIKE '/uploads/%' 
+            AND id NOT IN (SELECT file_id FROM file_data)
+        """))
+        conn.commit()
+except Exception as e:
+    print(f"Ghost file cleanup failed: {e}")
+
+# NOTE: Render uses ephemeral disks — local files won't exist after a redeploy.
+# We now use the database (`file_data` table) to persist files securely.
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title=settings.PROJECT_NAME)
