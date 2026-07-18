@@ -495,6 +495,40 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+      } else if (response.status === 404) {
+        // Fallback: The file is physically deleted from the server (e.g., ephemeral disk wipe)
+        // But the browser's HTTP cache STILL HAS IT since the <img> tag was able to display it!
+        // We will rescue it directly from the local browser cache!
+        try {
+            const baseUrl = apiUrl.replace('/api/v1', '');
+            // Find the file to reconstruct its raw URL
+            // (Assuming files array is available in scope)
+            // Wait, we need files in scope, handleDownload is inside Gallery component so files is available
+            const file = files.find(f => f.id === fileId);
+            if (file) {
+                const fileUrl = (file.storage_path || '').startsWith('http') 
+                  ? (file.storage_path || '')
+                  : `${baseUrl}${(file.storage_path || '').replace('..', '')}`;
+                
+                const cachedRes = await fetch(fileUrl, { cache: "force-cache" });
+                if (cachedRes.ok) {
+                    const blob = await cachedRes.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = originalName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    return; // Successfully rescued!
+                }
+            }
+        } catch (cacheErr) {
+            console.warn("Cache rescue failed", cacheErr);
+        }
+        alert("Failed to download file: Server returned " + response.status + " (File is permanently deleted from server and cache)");
       } else {
         alert("Failed to download file: Server returned " + response.status);
       }
