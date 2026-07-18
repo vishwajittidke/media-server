@@ -50,7 +50,12 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Invalid credentials');
+        try {
+          const errData = await response.json();
+          throw new Error(errData.detail || `Server returned ${response.status}`);
+        } catch (e) {
+          throw new Error(`Invalid credentials or server error: ${response.status}`);
+        }
       }
 
       const data = await response.json();
