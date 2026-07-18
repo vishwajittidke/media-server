@@ -10,7 +10,7 @@ from core.limiter import limiter
 
 from database import engine
 from models import Base
-from api.routers import auth, files, ws, folders
+from api.routers import auth, files, ws, folders, targets
 from core.config import settings
 from sqlalchemy import text
 
@@ -87,6 +87,7 @@ app.add_middleware(
 app.include_router(auth.router,    prefix="/api/v1/auth",    tags=["auth"])
 app.include_router(files.router,   prefix="/api/v1/files",   tags=["files"])
 app.include_router(folders.router, prefix="/api/v1/folders", tags=["folders"])
+app.include_router(targets.router)
 app.include_router(ws.router,      prefix="/api/v1/ws",      tags=["ws"])
 
 # ── Static file serving ───────────────────────────────────────────────────────

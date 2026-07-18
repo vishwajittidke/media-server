@@ -4,6 +4,7 @@ import 'photoswipe/dist/photoswipe.css';
 import exifr from 'exifr';
 import { motion, AnimatePresence } from 'framer-motion';
 import Tilt from 'react-parallax-tilt';
+import { TargetDestinations } from './TargetDestinations';
 
 interface FileItem {
   id: string;
@@ -45,6 +46,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showTargetsModal, setShowTargetsModal] = useState(false);
   const [showStorageModal, setShowStorageModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ old: '', new: '' });
   const [uploading, setUploading] = useState(false);
@@ -492,14 +494,8 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else if (response.status === 404) {
-        // Fallback: The file is physically deleted from the server (e.g., ephemeral disk wipe)
-        // But the browser's HTTP cache STILL HAS IT since the <img> tag was able to display it!
-        // We will rescue it directly from the local browser cache!
         try {
             const baseUrl = apiUrl.replace('/api/v1', '');
-            // Find the file to reconstruct its raw URL
-            // (Assuming files array is available in scope)
-            // Wait, we need files in scope, handleDownload is inside Gallery component so files is available
             const file = files.find(f => f.id === fileId);
             if (file) {
                 const fileUrl = (file.storage_path || '').startsWith('http') 
@@ -518,7 +514,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-                    return; // Successfully rescued!
+                    return; 
                 }
             }
         } catch (cacheErr) {
@@ -642,7 +638,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         </div>
       )}
       <div className="relative z-10 max-w-[1400px] mx-auto px-4 py-8">
-        {/* Dynamic Island Upload Progress */}
         <AnimatePresence>
           {uploading && (
             <motion.div 
@@ -672,7 +667,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           )}
         </AnimatePresence>
 
-        {/* Header */}
         <header className="relative z-50 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 mb-6 sm:mb-10 glass-panel p-4 sm:p-3 sm:px-6 rounded-[2rem] sm:rounded-full animate-fade-in-up">
           <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-center sm:justify-start">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0">
@@ -683,7 +677,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Gallery</h1>
           </div>
           
-          {/* Search Bar */}
           <div className="flex-1 max-w-md mx-4 hidden md:block">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -810,7 +803,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             >
               <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
-            {/* Grid Zoom */}
             <div className="hidden sm:flex items-center gap-2 bg-white/5 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10" title="Grid Size">
               <button onClick={() => setGridScale(Math.max(2, gridScale - 1))} className="text-white/50 hover:text-white transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" /></svg>
@@ -830,7 +822,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
               </button>
             </div>
             
-            {/* Layout Toggle */}
             <button 
               onClick={() => {
                 const next = layout === 'grid' ? 'masonry' : 'grid';
@@ -852,7 +843,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             </button>
           </div>
           
-          {/* Tabs */}
           <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-start sm:justify-center px-4 w-full sm:w-auto">
             <button 
               onClick={() => { setActiveTab('photos'); setCurrentFolderId(null); setIsSelectMode(false); }}
@@ -883,7 +873,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           </div>
         </header>
 
-        {/* Folder Header */}
         {currentFolderId && (
           <div className="flex items-center space-x-4 mb-6 animate-fade-in-up">
             <button 
@@ -898,7 +887,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           </div>
         )}
 
-        {/* Progress Bar */}
         {uploadProgress !== null && (
           <div className="w-full bg-white/10 rounded-full h-1.5 mb-6 overflow-hidden">
             <div 
@@ -910,7 +898,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           </div>
         )}
 
-        {/* Folders Grid */}
         {activeTab === 'albums' && !currentFolderId && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 animate-fade-in-up">
             <button 
@@ -955,7 +942,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           </div>
         )}
 
-        {/* Files Grid */}
         {(activeTab === 'photos' || activeTab === 'favorites' || activeTab === 'trash' || currentFolderId) && (
           <PhotoSwipeGallery>
             {activeTab === 'trash' && files.length > 0 && (
@@ -1067,7 +1053,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                                 }
                               }}
                             />
-                            {/* Favorite Button Overlay (hidden in trash) */}
                             {activeTab !== 'trash' && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); toggleFavorite(file.id); }}
@@ -1155,7 +1140,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                           </p>
                         </div>
 
-                        {/* Move Button */}
                         <button 
                           onClick={(e) => { e.stopPropagation(); setMovingFileId(file.id); }}
                           className="absolute top-3 right-24 bg-blue-500/10 dark:bg-black/30 backdrop-blur-xl text-blue-500 dark:text-blue-400 p-2.5 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-auto flex items-center justify-center cursor-pointer border border-blue-500/30 hover:bg-blue-500 hover:text-white hover:border-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.2)] active:scale-90"
@@ -1181,7 +1165,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         )}
       </div>
 
-      {/* Move File Modal */}
       {movingFileId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
           <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
@@ -1218,7 +1201,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         </div>
       )}
 
-      {/* Create Folder Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
           <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
@@ -1252,7 +1234,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           </div>
         </div>
       )}
-      {/* Change Password Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
           <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
@@ -1283,7 +1264,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         </div>
       )}
 
-      {/* Settings Modal */}
       {showSettingsModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
           <div className="bg-slate-900/90 border border-white/20 p-6 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
@@ -1296,7 +1276,17 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 <span>Change Password</span>
                 <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
               </button>
-              
+              <button 
+                onClick={() => { setShowSettingsModal(false); setShowTargetsModal(true); }}
+                className="w-full py-3 px-4 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 font-medium transition-colors text-blue-400 flex items-center justify-between border border-blue-500/20"
+              >
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>
+                  <span>Target Destinations</span>
+                </div>
+                <svg className="w-5 h-5 text-blue-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+              </button>
+
               <button 
                 onClick={onLogout} 
                 className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 font-medium transition-colors text-white flex items-center justify-between"
@@ -1323,7 +1313,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         </div>
       )}
 
-      {/* Storage Modal */}
       {showStorageModal && storageData && (() => {
         const usedMB = storageData.used / (1024 * 1024);
         const limitMB = storageData.limit / (1024 * 1024);
@@ -1377,7 +1366,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
               </div>
             </div>
 
-            {/* Stats Cards */}
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
                 <p className="text-lg font-bold text-white">{storageData.file_count}</p>
@@ -1404,7 +1392,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         );
       })()}
 
-      {/* Floating Bulk Action Bar */}
       {isSelectMode && selectedFileIds.size > 0 && (
         <div className="fixed bottom-6 left-4 right-4 sm:bottom-10 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 glass-panel p-3 sm:p-4 rounded-2xl sm:rounded-full flex items-center justify-between sm:justify-start gap-4 animate-fade-in-up shadow-2xl border border-white/20">
           <span className="font-bold text-white/90 pl-2 whitespace-nowrap text-sm sm:text-base">{selectedFileIds.size} Selected</span>
@@ -1412,6 +1399,14 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             Move To Album
           </button>
         </div>
+      )}
+
+      {/* Target Destinations Modal */}
+      {showTargetsModal && (
+        <TargetDestinations 
+          token={localStorage.getItem('token') || ''} 
+          onClose={() => setShowTargetsModal(false)} 
+        />
       )}
     </div>
   );
