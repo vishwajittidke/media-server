@@ -61,6 +61,9 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [storageData, setStorageData] = useState<{used: number, limit: number, file_count: number} | null>(null);
+  const [uploadProvider, setUploadProvider] = useState<'supabase' | 'aws_s3' | 'cloudinary'>(() => {
+    return (localStorage.getItem('upload_provider') as any) || 'supabase';
+  });
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -260,6 +263,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       if (currentFolderId) {
         formData.append("folder_id", currentFolderId);
       }
+      formData.append("storage_provider", uploadProvider);
 
       await new Promise<void>((resolve) => {
         const xhr = new XMLHttpRequest();
@@ -720,20 +724,44 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">
-            <label className="premium-btn cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 !px-3 sm:!px-6 !py-1.5 sm:!py-2.5">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              <span className="text-sm sm:text-base whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>
-              <input 
-                type="file" 
-                multiple 
-                className="hidden" 
-                ref={fileInputRef}
-                onChange={handleUpload}
-                disabled={uploading}
-              />
-            </label>
+            <div className="flex items-center premium-btn !p-1 sm:!p-1.5 space-x-1 sm:space-x-2">
+              <label className="cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors h-full">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span className="text-sm sm:text-base font-medium whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>
+                <input 
+                  type="file" 
+                  multiple 
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={handleUpload}
+                  disabled={uploading}
+                />
+              </label>
+              
+              <div className="h-6 w-px bg-white/20 hidden sm:block"></div>
+              
+              <div className="relative">
+                <select 
+                  value={uploadProvider}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setUploadProvider(val);
+                    localStorage.setItem('upload_provider', val);
+                  }}
+                  className="appearance-none bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 pl-3 pr-8 transition-all cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/50"
+                  disabled={uploading}
+                >
+                  <option value="supabase" className="bg-slate-900 text-white">Supabase</option>
+                  <option value="aws_s3" className="bg-slate-900 text-white">AWS S3</option>
+                  <option value="cloudinary" className="bg-slate-900 text-white">Cloudinary</option>
+                </select>
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
+            </div>
             <button 
               onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}
               className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
