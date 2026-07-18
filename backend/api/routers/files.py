@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile, Form, Request, status
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -13,7 +13,7 @@ Image.MAX_IMAGE_PIXELS = None
 from pydantic import BaseModel
 
 from core.config import settings
-from models import User, File as DBFile, UploadStatusEnum, Folder
+from models import User, File as DBFile, Tag, FileTag, UploadStatusEnum, Folder, FileData
 from api.deps import get_db, get_current_user
 from core.websocket import manager
 from core.limiter import limiter
@@ -107,8 +107,8 @@ def resolve_file_urls(f: DBFile):
         thumbnail_url = f.storage_path
         preview_url   = f.storage_path
     else:
-        thumbnail_url = f.thumbnail_path or f"/uploads/{f.stored_name}"
-        preview_url   = f"/previews/{f.stored_name}"
+        thumbnail_url = f.thumbnail_path or f"/api/v1/files/thumb/{f.stored_name}"
+        preview_url   = f"/api/v1/files/preview/{f.stored_name}"
     
     return thumbnail_url, preview_url
 
@@ -164,8 +164,8 @@ async def upload_files(
             stored_name = f"{file_hash}{ext}"
             object_path = f"photos/{stored_name}"   # path inside Supabase bucket
 
-            storage_path  = f"/uploads/{stored_name}"   # local fallback default
-            thumbnail_path = f"/thumbnails/{stored_name}"
+            storage_path  = f"/api/v1/files/raw/{stored_name}"
+            thumbnail_path = f"/api/v1/files/thumb/{stored_name}"
             supabase_ok = False
 
             # ── Upload to Supabase Storage ────────────────────────────────
@@ -182,34 +182,6 @@ async def upload_files(
                     import traceback
                     print(f"❌ Supabase upload failed for {original_name}: {e}")
                     traceback.print_exc()
-
-            # ── Local fallback (saves to disk if Supabase not configured) ──
-            if not supabase_ok:
-                final_path = os.path.join(settings.UPLOADS_DIR, stored_name)
-                with open(final_path, "wb") as fout:
-                    fout.write(raw_bytes)
-
-                if mime_type.startswith("image/"):
-                    try:
-                        with Image.open(io.BytesIO(raw_bytes)) as img:
-                            if img.mode in ("RGBA", "P"):
-                                img = img.convert("RGB")
-                            thumb = img.copy()
-                            thumb.thumbnail((800, 800))
-                            thumb.save(
-                                os.path.join(settings.THUMBNAILS_DIR, stored_name),
-                                format="JPEG", quality=80,
-                            )
-                        with Image.open(io.BytesIO(raw_bytes)) as img:
-                            if img.mode in ("RGBA", "P"):
-                                img = img.convert("RGB")
-                            img.thumbnail((2560, 1440))
-                            img.save(
-                                os.path.join(settings.PREVIEWS_DIR, stored_name),
-                                format="JPEG", quality=80,
-                            )
-                    except Exception as e:
-                        print(f"Local thumbnail error: {e}")
 
             # ── Parse date_taken ──────────────────────────────────────────
             parsed_date = None
@@ -237,6 +209,56 @@ async def upload_files(
                 deleted_at=None,
             )
             db.add(db_file)
+            db.flush()
+
+            # ── Local fallback (saves to DB and cache if Supabase not configured) ──
+            if not supabase_ok:
+                # 1. Save to DB
+                db_data_original = FileData(file_id=db_file.id, kind="original", data=raw_bytes)
+                db.add(db_data_original)
+                
+                thumb_bytes = None
+                preview_bytes = None
+
+                if mime_type.startswith("image/"):
+                    try:
+                        with Image.open(io.BytesIO(raw_bytes)) as img:
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                            
+                            # Thumbnail
+                            thumb = img.copy()
+                            thumb.thumbnail((800, 800))
+                            t_io = io.BytesIO()
+                            thumb.save(t_io, format="JPEG", quality=80)
+                            thumb_bytes = t_io.getvalue()
+                            db_data_thumb = FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes)
+                            db.add(db_data_thumb)
+                            
+                            # Preview
+                            preview = img.copy()
+                            preview.thumbnail((2560, 1440))
+                            p_io = io.BytesIO()
+                            preview.save(p_io, format="JPEG", quality=80)
+                            preview_bytes = p_io.getvalue()
+                            db_data_preview = FileData(file_id=db_file.id, kind="preview", data=preview_bytes)
+                            db.add(db_data_preview)
+                    except Exception as e:
+                        print(f"Local thumbnail error: {e}")
+                
+                # 2. Write to local disk cache for fast serving
+                try:
+                    with open(os.path.join(settings.UPLOADS_DIR, stored_name), "wb") as fout:
+                        fout.write(raw_bytes)
+                    if thumb_bytes:
+                        with open(os.path.join(settings.THUMBNAILS_DIR, stored_name), "wb") as fout:
+                            fout.write(thumb_bytes)
+                    if preview_bytes:
+                        with open(os.path.join(settings.PREVIEWS_DIR, stored_name), "wb") as fout:
+                            fout.write(preview_bytes)
+                except Exception as e:
+                    print(f"Cache write error: {e}")
+
             db.commit()
             db.refresh(db_file)
 
@@ -341,6 +363,49 @@ def download_file(
         filename=db_file.original_name,
         media_type=db_file.mime_type,
     )
+
+
+# ── Serve Files (Database/Cache Hybrid) ──────────────────────────────────────
+
+def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
+    # 1. Try local disk cache first
+    local_path = os.path.join(cache_dir, stored_name)
+    if os.path.exists(local_path):
+        return FileResponse(local_path)
+    
+    # 2. If not in cache (e.g. after Render restart), pull from Database
+    db_file = db.query(DBFile).filter(DBFile.stored_name == stored_name).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    db_data = db.query(FileData).filter(FileData.file_id == db_file.id, FileData.kind == kind).first()
+    if not db_data:
+        # Fallback to original if thumbnail/preview doesn't exist
+        db_data = db.query(FileData).filter(FileData.file_id == db_file.id, FileData.kind == "original").first()
+        if not db_data:
+            raise HTTPException(status_code=404, detail="File data not found")
+            
+    # 3. Write back to local cache to speed up future requests
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(local_path, "wb") as fout:
+            fout.write(db_data.data)
+    except Exception as e:
+        print(f"Failed to write cache: {e}")
+        
+    return Response(content=db_data.data, media_type=db_file.mime_type)
+
+@router.get("/raw/{stored_name}")
+def get_raw_file(stored_name: str, db: Session = Depends(get_db)):
+    return serve_file(stored_name, "original", settings.UPLOADS_DIR, db)
+
+@router.get("/thumb/{stored_name}")
+def get_thumb_file(stored_name: str, db: Session = Depends(get_db)):
+    return serve_file(stored_name, "thumbnail", settings.THUMBNAILS_DIR, db)
+
+@router.get("/preview/{stored_name}")
+def get_preview_file(stored_name: str, db: Session = Depends(get_db)):
+    return serve_file(stored_name, "preview", settings.PREVIEWS_DIR, db)
 
 
 # ── Soft delete (Recycle Bin) ────────────────────────────────────────────────

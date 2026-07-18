@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Enum, create_engine
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Enum, create_engine, LargeBinary
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -70,6 +70,17 @@ class File(Base):
     owner = relationship("User", back_populates="files")
     folder = relationship("Folder", back_populates="files")
     tags = relationship("Tag", secondary="file_tags")
+    file_data_list = relationship("FileData", back_populates="file", cascade="all, delete-orphan")
+
+class FileData(Base):
+    __tablename__ = "file_data"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    file_id = Column(String(36), ForeignKey("files.id", ondelete="CASCADE"), index=True)
+    kind = Column(String)  # "original", "thumbnail", "preview"
+    data = Column(LargeBinary)
+
+    file = relationship("File", back_populates="file_data_list")
 
 class Tag(Base):
     __tablename__ = "tags"
