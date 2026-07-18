@@ -673,7 +673,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         </AnimatePresence>
 
         {/* Header */}
-        <header className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 mb-6 sm:mb-10 glass-panel p-4 sm:p-3 sm:px-6 rounded-[2rem] sm:rounded-full animate-fade-in-up">
+        <header className="relative z-50 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 mb-6 sm:mb-10 glass-panel p-4 sm:p-3 sm:px-6 rounded-[2rem] sm:rounded-full animate-fade-in-up">
           <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-center sm:justify-start">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0">
               <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
