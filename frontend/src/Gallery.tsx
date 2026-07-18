@@ -116,11 +116,12 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     setPage(0);
     setHasMore(true);
     fetchFiles(currentFolderId, 0);
+    
     if (activeTab === 'albums' && currentFolderId === null) {
+      if (folders.length === 0) fetchFolders();
+    } else if (folders.length === 0) {
       fetchFolders();
     }
-    // Also fetch folders if we need them for the Move modal
-    if (folders.length === 0) fetchFolders();
   }, [currentFolderId, activeTab, debouncedSearch]);
 
   useEffect(() => {
@@ -146,6 +147,14 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     return () => observer.disconnect();
   }, [hasMore, initialLoading]);
 
+  const fetchFilesRef = useRef(fetchFiles);
+  const currentFolderIdRef = useRef(currentFolderId);
+
+  useEffect(() => {
+    fetchFilesRef.current = fetchFiles;
+    currentFolderIdRef.current = currentFolderId;
+  }, [fetchFiles, currentFolderId]);
+
   useEffect(() => {
     let ws: WebSocket;
     
@@ -158,7 +167,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         const data = JSON.parse(event.data);
         if (data.type === "FILE_UPLOADED") {
           setPage(0);
-          fetchFiles(currentFolderId, 0);
+          fetchFilesRef.current(currentFolderIdRef.current, 0);
         }
       };
 
@@ -170,13 +179,12 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     connectWs();
 
     return () => {
-      
       if (ws) {
         ws.onclose = null;
         ws.close();
       }
     };
-  }, [wsToken, currentFolderId, fetchFiles]);
+  }, [wsToken]);
 
   const fetchFolders = async () => {
     try {
