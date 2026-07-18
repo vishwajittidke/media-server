@@ -350,9 +350,10 @@ def download_file(
     # If stored on Supabase, proxy the file stream to avoid frontend CORS issues
     if db_file.storage_path and db_file.storage_path.startswith("http"):
         def iterfile():
-            with requests.get(db_file.storage_path, stream=True) as r:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"}
+            with requests.get(db_file.storage_path, headers=headers, stream=True) as r:
                 if r.status_code != 200:
-                    raise HTTPException(status_code=404, detail="File not found in remote storage")
+                    raise HTTPException(status_code=r.status_code, detail=f"Failed to fetch from Supabase. Status: {r.status_code}")
                 for chunk in r.iter_content(chunk_size=8192):
                     yield chunk
 
