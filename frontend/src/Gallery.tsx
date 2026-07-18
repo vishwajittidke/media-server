@@ -60,7 +60,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [storageData, setStorageData] = useState<{used: number, limit: number} | null>(null);
+  const [storageData, setStorageData] = useState<{used: number, limit: number, file_count: number} | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -294,6 +294,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
     setPage(0);
     await fetchFiles(currentFolderId, 0);
+    await fetchStorage();
     setUploading(false);
     setUploadProgress(null);
   };
@@ -531,6 +532,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       
       if (response.ok || response.status === 204) {
         setFiles(prev => prev.filter(f => f.id !== fileId));
+        fetchStorage();
       } else {
         alert("Failed to delete file.");
       }
@@ -549,6 +551,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       });
       if (response.ok) {
         setFiles(prev => prev.filter(f => f.id !== fileId));
+        fetchStorage();
       }
     } catch (err) {
       console.error(err);
@@ -566,6 +569,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       });
       if (response.ok || response.status === 204) {
         setFiles(prev => prev.filter(f => f.id !== fileId));
+        fetchStorage();
       }
     } catch (err) {
       console.error(err);
@@ -582,6 +586,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       });
       if (response.ok) {
         setFiles([]);
+        fetchStorage();
       }
     } catch (err) {
       console.error(err);
@@ -1252,46 +1257,72 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       )}
 
       {/* Storage Modal */}
-      {showStorageModal && storageData && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
-          <div className="bg-slate-900/90 border border-white/20 p-8 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
+      {showStorageModal && storageData && (() => {
+        const usedMB = storageData.used / (1024 * 1024);
+        const limitMB = storageData.limit / (1024 * 1024);
+        const freeMB = limitMB - usedMB;
+        const pct = Math.min(100, (storageData.used / storageData.limit) * 100);
+        const avgSize = storageData.file_count > 0 ? usedMB / storageData.file_count : 0;
+        const barColor = pct > 90 ? 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)]' : pct > 75 ? 'bg-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.5)]' : 'bg-blue-400 shadow-[0_0_20px_rgba(96,165,250,0.5)]';
+        const statusColor = pct > 90 ? 'text-red-400' : pct > 75 ? 'text-yellow-400' : 'text-emerald-400';
+        const statusText = pct > 90 ? 'Almost Full' : pct > 75 ? 'Getting Low' : 'Healthy';
+        return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up" onClick={() => setShowStorageModal(false)}>
+          <div className="bg-slate-900/90 border border-white/20 p-8 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/40">
-                <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+              <div className="relative w-16 h-16">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray={`${pct * 1.759} 999`} className={statusColor} strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-out' }} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold text-white">{pct.toFixed(0)}%</span>
+                </div>
               </div>
             </div>
-            <h3 className="text-2xl font-bold mb-2 text-white text-center tracking-tight">Storage Usage</h3>
-            <p className="text-white/60 text-center text-sm font-medium mb-8">
-              Keep an eye on your space to ensure you can keep uploading!
+            <h3 className="text-2xl font-bold mb-1 text-white text-center tracking-tight">Storage Usage</h3>
+            <p className={`text-center text-xs font-semibold mb-6 ${statusColor}`}>
+              ● {statusText}
             </p>
             
-            <div className="space-y-4 mb-8">
+            <div className="space-y-4 mb-6">
               <div className="flex justify-between items-end mb-2">
                 <span className="text-3xl font-bold text-white tracking-tight">
-                  {(storageData.used / (1024 * 1024)).toFixed(1)} <span className="text-lg text-white/50 font-medium">MB</span>
+                  {usedMB.toFixed(1)} <span className="text-lg text-white/50 font-medium">MB</span>
                 </span>
                 <span className="text-white/50 text-sm font-medium pb-1">
-                  of {(storageData.limit / (1024 * 1024)).toFixed(0)} MB
+                  of {limitMB.toFixed(0)} MB
                 </span>
               </div>
               
               <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden border border-white/5">
                 <div 
-                  className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                    (storageData.used / storageData.limit) > 0.9 ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 
-                    (storageData.used / storageData.limit) > 0.75 ? 'bg-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)]' : 'bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.5)]'
-                  }`}
-                  style={{ width: `${Math.min(100, (storageData.used / storageData.limit) * 100)}%` }} 
+                  className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`}
+                  style={{ width: `${pct}%` }} 
                 />
               </div>
               
               <div className="flex justify-between text-xs font-medium">
                 <span className="text-white/50">0 MB</span>
-                <span className={`${
-                  (storageData.limit - storageData.used) / (1024 * 1024) < 10 ? 'text-red-400 font-bold' : 'text-white/50'
-                }`}>
-                  {((storageData.limit - storageData.used) / (1024 * 1024)).toFixed(1)} MB left
+                <span className={`${freeMB < 10 ? 'text-red-400 font-bold' : 'text-white/50'}`}>
+                  {freeMB.toFixed(1)} MB left
                 </span>
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                <p className="text-lg font-bold text-white">{storageData.file_count}</p>
+                <p className="text-[10px] text-white/50 font-medium mt-0.5">Photos</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                <p className="text-lg font-bold text-white">{avgSize.toFixed(1)}</p>
+                <p className="text-[10px] text-white/50 font-medium mt-0.5">Avg MB</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                <p className="text-lg font-bold text-white">{Math.floor(freeMB / (avgSize || 1))}</p>
+                <p className="text-[10px] text-white/50 font-medium mt-0.5">Can Upload</p>
               </div>
             </div>
 
@@ -1303,7 +1334,8 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Floating Bulk Action Bar */}
       {isSelectMode && selectedFileIds.size > 0 && (

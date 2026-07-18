@@ -284,10 +284,12 @@ async def upload_files(
 @router.get("/storage")
 def get_storage_usage(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from sqlalchemy import func
-    used = db.query(func.sum(DBFile.file_size)).filter(DBFile.owner_id == current_user.id).scalar()
+    base_filter = (DBFile.owner_id == current_user.id) & (DBFile.deleted_at == None)
+    used = db.query(func.sum(DBFile.file_size)).filter(base_filter).scalar()
+    file_count = db.query(func.count(DBFile.id)).filter(base_filter).scalar()
     # Let's say free tier gives 150MB per user
     limit = 150 * 1024 * 1024
-    return {"used": used or 0, "limit": limit}
+    return {"used": used or 0, "limit": limit, "file_count": file_count or 0}
 
 @router.get("/admin/stats")
 def get_admin_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
