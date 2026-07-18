@@ -291,10 +291,13 @@ def list_files(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query = db.query(DBFile).filter(
-        DBFile.owner_id == current_user.id,
-        DBFile.deleted_at == None,
+    query = db.query(DBFile, User.username).join(User, DBFile.owner_id == User.id).filter(
+        DBFile.deleted_at == None
     )
+
+    if current_user.role.value != "ADMIN":
+        query = query.filter(DBFile.owner_id == current_user.id)
+
 
     if search:
         query = query.filter(DBFile.original_name.ilike(f"%{search}%"))
@@ -316,7 +319,7 @@ def list_files(
     )
 
     result = []
-    for f in files:
+    for f, owner_username in files:
         thumbnail_url, preview_url = resolve_file_urls(f)
         result.append({
             "id": f.id,
@@ -329,6 +332,7 @@ def list_files(
             "storage_path": f.storage_path,
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,
+            "owner_username": owner_username,
         })
     return result
 

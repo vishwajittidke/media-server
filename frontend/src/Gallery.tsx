@@ -16,6 +16,7 @@ interface FileItem {
   preview_url?: string;
   is_favorite?: boolean;
   date_taken?: string;
+  owner_username?: string;
 }
 
 interface FolderItem {
