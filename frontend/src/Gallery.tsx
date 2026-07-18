@@ -75,6 +75,22 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowProviderDropdown(false);
+        setShowCreateModal(false);
+        setShowPasswordModal(false);
+        setShowSettingsModal(false);
+        setShowTargetsModal(false);
+        setShowStorageModal(false);
+        setMovingFileId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
