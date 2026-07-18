@@ -80,11 +80,12 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
         await fetchTargets();
         setActiveTab('list');
       } else {
-        alert("Failed to save target");
+        const errorText = await res.text();
+        alert(`Failed to save target. Server says: ${res.status} ${errorText}`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Error saving target");
+      alert(`Error saving target: ${e.message}`);
     }
   };
 
