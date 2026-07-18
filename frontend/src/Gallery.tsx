@@ -45,6 +45,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showStorageModal, setShowStorageModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ old: '', new: '' });
   const [uploading, setUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -683,7 +684,10 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           </div>
           
           {storageData && (
-            <div className="hidden xl:flex items-center gap-2 mx-4 text-xs font-medium bg-white/5 border border-white/10 rounded-full py-1.5 px-3 backdrop-blur-md">
+            <button 
+              onClick={() => setShowStorageModal(true)}
+              className="hidden xl:flex items-center gap-2 mx-4 text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-full py-1.5 px-3 backdrop-blur-md transition-all cursor-pointer"
+            >
               <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
               </svg>
@@ -696,10 +700,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                   style={{ width: `${Math.min(100, (storageData.used / storageData.limit) * 100)}%` }} 
                 />
               </div>
-              <span className="text-white/70 whitespace-nowrap">
-                {(storageData.used / (1024 * 1024)).toFixed(1)} / {(storageData.limit / (1024 * 1024)).toFixed(0)} MB
-              </span>
-            </div>
+            </button>
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">
@@ -722,6 +723,13 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
               className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
             >
               {isSelectMode ? 'Cancel' : 'Select'}
+            </button>
+            <button 
+              onClick={() => setShowStorageModal(true)}
+              className="premium-btn xl:hidden !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"
+              title="Storage Stats"
+            >
+              <svg className="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
             </button>
             <button 
               onClick={() => setShowSettingsModal(true)}
@@ -1236,6 +1244,60 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             <button 
               onClick={() => setShowSettingsModal(false)}
               className="w-full mt-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Storage Modal */}
+      {showStorageModal && storageData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-slate-900/90 border border-white/20 p-8 rounded-3xl w-full max-w-sm shadow-2xl backdrop-blur-2xl">
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/40">
+                <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold mb-2 text-white text-center tracking-tight">Storage Usage</h3>
+            <p className="text-white/60 text-center text-sm font-medium mb-8">
+              Keep an eye on your space to ensure you can keep uploading!
+            </p>
+            
+            <div className="space-y-4 mb-8">
+              <div className="flex justify-between items-end mb-2">
+                <span className="text-3xl font-bold text-white tracking-tight">
+                  {(storageData.used / (1024 * 1024)).toFixed(1)} <span className="text-lg text-white/50 font-medium">MB</span>
+                </span>
+                <span className="text-white/50 text-sm font-medium pb-1">
+                  of {(storageData.limit / (1024 * 1024)).toFixed(0)} MB
+                </span>
+              </div>
+              
+              <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden border border-white/5">
+                <div 
+                  className={`h-full rounded-full transition-all duration-1000 ease-out ${
+                    (storageData.used / storageData.limit) > 0.9 ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 
+                    (storageData.used / storageData.limit) > 0.75 ? 'bg-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)]' : 'bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.5)]'
+                  }`}
+                  style={{ width: `${Math.min(100, (storageData.used / storageData.limit) * 100)}%` }} 
+                />
+              </div>
+              
+              <div className="flex justify-between text-xs font-medium">
+                <span className="text-white/50">0 MB</span>
+                <span className={`${
+                  (storageData.limit - storageData.used) / (1024 * 1024) < 10 ? 'text-red-400 font-bold' : 'text-white/50'
+                }`}>
+                  {((storageData.limit - storageData.used) / (1024 * 1024)).toFixed(1)} MB left
+                </span>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setShowStorageModal(false)}
+              className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 font-semibold transition-colors text-white"
             >
               Close
             </button>
