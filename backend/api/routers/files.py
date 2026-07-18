@@ -91,18 +91,14 @@ def resolve_file_urls(f: DBFile):
     object_path = f"photos/{f.sha256}{f.extension}"
     
     if _sb_configured():
-        # Always generate Supabase transform URLs if Supabase is configured
-        # The file may or may not be in Supabase — the transform URL will
-        # return 404 if it's not, which the frontend handles gracefully
-        thumbnail_url = _sb_transform_url(object_path, width=800, quality=80)
-        preview_url   = _sb_transform_url(object_path, width=2560, quality=80)
+        bucket = settings.SUPABASE_BUCKET
+        base = f"{settings.SUPABASE_URL}/storage/v1/object/public/{bucket}"
         
-        # If storage_path is still a local path, serve the Supabase public URL as fallback
-        if f.storage_path and f.storage_path.startswith("http"):
-            pass  # Already on Supabase, transform URLs will work
-        else:
-            # Old file — use the public URL directly (no transform) as preview fallback
-            preview_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{settings.SUPABASE_BUCKET}/{object_path}"
+        # Point to the physically uploaded thumbnails we generate
+        thumbnail_url = f"{base}/photos/thumbs/{f.sha256}{f.extension}"
+        preview_url   = f"{base}/photos/previews/{f.sha256}{f.extension}"
+        
+        # If storage_path is still a local path, the frontend will fallback to it via onError if needed
     elif f.storage_path and f.storage_path.startswith("http"):
         thumbnail_url = f.storage_path
         preview_url   = f.storage_path
@@ -168,15 +164,42 @@ async def upload_files(
             thumbnail_path = f"/api/v1/files/thumb/{stored_name}"
             supabase_ok = False
 
-            # ── Upload to Supabase Storage ────────────────────────────────
+            # ── 1. Generate Thumbnails (Shared Logic) ─────────────────────────
+            thumb_bytes = None
+            preview_bytes = None
+
+            if mime_type.startswith("image/"):
+                try:
+                    with Image.open(io.BytesIO(raw_bytes)) as img:
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        
+                        # Thumbnail (Very small, saves bandwidth)
+                        thumb = img.copy()
+                        thumb.thumbnail((600, 600))
+                        t_io = io.BytesIO()
+                        thumb.save(t_io, format="JPEG", quality=75)
+                        thumb_bytes = t_io.getvalue()
+                        
+                        # Preview (1080p, moderate quality to save RAM/storage)
+                        preview = img.copy()
+                        preview.thumbnail((1920, 1080))
+                        p_io = io.BytesIO()
+                        preview.save(p_io, format="JPEG", quality=75)
+                        preview_bytes = p_io.getvalue()
+                except Exception as e:
+                    print(f"Thumbnail generation error: {e}")
+
+            # ── 2. Upload to Supabase Storage ──────────────────────────────
             if _sb_configured():
                 try:
                     storage_path = _sb_upload(object_path, raw_bytes, mime_type)
+                    if thumb_bytes:
+                        _sb_upload(f"photos/thumbs/{stored_name}", thumb_bytes, "image/jpeg")
+                    if preview_bytes:
+                        _sb_upload(f"photos/previews/{stored_name}", preview_bytes, "image/jpeg")
+                        
                     supabase_ok = True
-
-                    if mime_type.startswith("image/"):
-                        thumbnail_path = _sb_transform_url(object_path, width=800, quality=80)
-
                     print(f"✅ Supabase upload OK: {original_name} → {object_path}")
                 except Exception as e:
                     import traceback
@@ -213,38 +236,13 @@ async def upload_files(
 
             # ── Local fallback (saves to DB and cache if Supabase not configured) ──
             if not supabase_ok:
-                # 1. Save to DB
                 db_data_original = FileData(file_id=db_file.id, kind="original", data=raw_bytes)
                 db.add(db_data_original)
                 
-                thumb_bytes = None
-                preview_bytes = None
-
-                if mime_type.startswith("image/"):
-                    try:
-                        with Image.open(io.BytesIO(raw_bytes)) as img:
-                            if img.mode in ("RGBA", "P"):
-                                img = img.convert("RGB")
-                            
-                            # Thumbnail
-                            thumb = img.copy()
-                            thumb.thumbnail((800, 800))
-                            t_io = io.BytesIO()
-                            thumb.save(t_io, format="JPEG", quality=80)
-                            thumb_bytes = t_io.getvalue()
-                            db_data_thumb = FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes)
-                            db.add(db_data_thumb)
-                            
-                            # Preview
-                            preview = img.copy()
-                            preview.thumbnail((2560, 1440))
-                            p_io = io.BytesIO()
-                            preview.save(p_io, format="JPEG", quality=80)
-                            preview_bytes = p_io.getvalue()
-                            db_data_preview = FileData(file_id=db_file.id, kind="preview", data=preview_bytes)
-                            db.add(db_data_preview)
-                    except Exception as e:
-                        print(f"Local thumbnail error: {e}")
+                if thumb_bytes:
+                    db.add(FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes))
+                if preview_bytes:
+                    db.add(FileData(file_id=db_file.id, kind="preview", data=preview_bytes))
                 
                 # 2. Write to local disk cache for fast serving
                 try:
