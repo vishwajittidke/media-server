@@ -64,6 +64,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [uploadProvider, setUploadProvider] = useState<'supabase' | 'aws_s3' | 'cloudinary'>(() => {
     return (localStorage.getItem('upload_provider') as any) || 'supabase';
   });
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -743,23 +744,50 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
               <div className="h-6 w-px bg-white/20 hidden sm:block"></div>
               
               <div className="relative">
-                <select 
-                  value={uploadProvider}
-                  onChange={(e) => {
-                    const val = e.target.value as any;
-                    setUploadProvider(val);
-                    localStorage.setItem('upload_provider', val);
-                  }}
-                  className="appearance-none bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 pl-3 pr-8 transition-all cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/50"
+                <button 
+                  onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                  className="flex items-center justify-between min-w-[120px] bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 px-3 transition-all cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/50"
                   disabled={uploading}
                 >
-                  <option value="supabase" className="bg-slate-900 text-white">Supabase</option>
-                  <option value="aws_s3" className="bg-slate-900 text-white">AWS S3</option>
-                  <option value="cloudinary" className="bg-slate-900 text-white">Cloudinary</option>
-                </select>
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                </div>
+                  <span className="flex items-center gap-1.5">
+                    {uploadProvider === 'supabase' && <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                    {uploadProvider === 'aws_s3' && <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
+                    {uploadProvider === 'cloudinary' && <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                    {uploadProvider === 'supabase' ? 'Supabase' : uploadProvider === 'aws_s3' ? 'AWS S3' : 'Cloudinary'}
+                  </span>
+                  <svg className={`w-4 h-4 text-white/50 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                
+                {showProviderDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />
+                    <div className="absolute top-full mt-2 right-0 w-48 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 animate-fade-in-up">
+                      {[
+                        { id: 'supabase', label: 'Supabase', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />, color: 'text-emerald-400' },
+                        { id: 'aws_s3', label: 'AWS S3', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />, color: 'text-orange-400' },
+                        { id: 'cloudinary', label: 'Cloudinary', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />, color: 'text-blue-400' }
+                      ].map((prov) => (
+                        <button
+                          key={prov.id}
+                          onClick={() => {
+                            setUploadProvider(prov.id as any);
+                            localStorage.setItem('upload_provider', prov.id);
+                            setShowProviderDropdown(false);
+                          }}
+                          className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${uploadProvider === prov.id ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white font-medium'}`}
+                        >
+                          <svg className={`w-4 h-4 ${prov.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {prov.icon}
+                          </svg>
+                          {prov.label}
+                          {uploadProvider === prov.id && (
+                            <svg className="w-4 h-4 ml-auto text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             <button 
