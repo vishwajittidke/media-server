@@ -725,7 +725,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">
-            <div className="flex items-center premium-btn !p-1 sm:!p-1.5 space-x-1 sm:space-x-2 !overflow-visible">
+            <div className="flex items-center premium-btn !p-1 sm:!p-1.5 space-x-1 sm:space-x-2 !overflow-visible z-50">
               <label className="cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors h-full">
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
