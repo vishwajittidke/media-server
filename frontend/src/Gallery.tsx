@@ -481,7 +481,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     e.stopPropagation();
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
-      const response = await fetch(`${apiUrl}/files/${fileId}/download`, {
+      const response = await fetch(`${apiUrl}/files/download/${fileId}`, {
         credentials: 'include',
       });
       if (response.ok) {

@@ -351,16 +351,8 @@ def download_file(
     if db_file.storage_path and db_file.storage_path.startswith("http"):
         return RedirectResponse(url=db_file.storage_path)
 
-    # Local fallback
-    filepath = os.path.join(settings.UPLOADS_DIR, db_file.stored_name)
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="Physical file not found on disk")
-
-    return FileResponse(
-        path=filepath,
-        filename=db_file.original_name,
-        media_type=db_file.mime_type,
-    )
+    # Local fallback: Use the smart serve_file logic which handles DB recovery
+    return serve_file(db_file.stored_name, "original", settings.UPLOADS_DIR, db)
 
 
 # ── Serve Files (Database/Cache Hybrid) ──────────────────────────────────────
