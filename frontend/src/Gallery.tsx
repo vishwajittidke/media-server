@@ -63,8 +63,9 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [storageData, setStorageData] = useState<{used: number, limit: number, file_count: number} | null>(null);
-  const [uploadProvider, setUploadProvider] = useState<'supabase' | 'aws_s3' | 'cloudinary'>(() => {
-    return (localStorage.getItem('upload_provider') as any) || 'supabase';
+  const [targets, setTargets] = useState<any[]>([]);
+  const [activeTargetId, setActiveTargetId] = useState<string | null>(() => {
+    return localStorage.getItem('active_target_id') || null;
   });
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -93,6 +94,10 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         }
       }
 
+      if (activeTargetId) {
+        url += `&target_id=${activeTargetId}`;
+      }
+
       if (debouncedSearch && activeTab !== 'trash') {
         url += `&search=${encodeURIComponent(debouncedSearch)}`;
       }
@@ -119,12 +124,14 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     } finally {
       if (pageNum === 0) setInitialLoading(false);
     }
-  }, [activeTab, onLogout, debouncedSearch]);
+  }, [activeTab, onLogout, debouncedSearch, activeTargetId]);
 
   const fetchStorage = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
-      const response = await fetch(`${apiUrl}/files/storage`, { credentials: 'include' });
+      let url = `${apiUrl}/files/storage`;
+      if (activeTargetId) url += `?target_id=${activeTargetId}`;
+      const response = await fetch(url, { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setStorageData(data);
@@ -134,6 +141,27 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     }
   };
 
+  const fetchTargets = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const res = await fetch(`${apiUrl}/targets/`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setTargets(data);
+        if (data.length > 0 && (!activeTargetId || !data.find((t: any) => t.id === activeTargetId))) {
+          setActiveTargetId(data[0].id);
+          localStorage.setItem('active_target_id', data[0].id);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchTargets();
+  }, [showTargetsModal]);
+
   useEffect(() => {
     setPage(0);
     setHasMore(true);
@@ -142,7 +170,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       fetchFolders();
     }
     fetchStorage();
-  }, [currentFolderId, activeTab, debouncedSearch, fetchFiles]);
+  }, [currentFolderId, activeTab, debouncedSearch, activeTargetId, fetchFiles]);
 
   useEffect(() => {
     if (page > 0) {
@@ -266,7 +294,9 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       if (currentFolderId) {
         formData.append("folder_id", currentFolderId);
       }
-      formData.append("storage_provider", uploadProvider);
+      if (activeTargetId) {
+        formData.append("target_id", activeTargetId);
+      }
 
       await new Promise<void>((resolve) => {
         const xhr = new XMLHttpRequest();
@@ -307,7 +337,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     }
 
     if (storageLimitHit) {
-      alert("Storage limit exceeded! You have reached your 150 MB limit. Any files beyond the limit were not uploaded.");
+      alert("Storage limit exceeded! You have reached your storage provider's free tier limit. Any files beyond the limit were not uploaded.");
     }
 
     setPage(0);
@@ -742,11 +772,18 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                   className="flex items-center justify-between min-w-[120px] bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 px-3 transition-all cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/50"
                   disabled={uploading}
                 >
-                  <span className="flex items-center gap-1.5">
-                    {uploadProvider === 'supabase' && <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
-                    {uploadProvider === 'aws_s3' && <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
-                    {uploadProvider === 'cloudinary' && <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
-                    {uploadProvider === 'supabase' ? 'Supabase' : uploadProvider === 'aws_s3' ? 'AWS S3' : 'Cloudinary'}
+                  <span className="flex items-center gap-1.5 truncate max-w-[150px]">
+                    {activeTargetId && targets.find(t => t.id === activeTargetId) ? (
+                      <>
+                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'SUPABASE' && <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'AWS_S3' && <svg className="w-4 h-4 text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
+                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'CLOUDINARY' && <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'GOOGLE_DRIVE' && <svg className="w-4 h-4 text-yellow-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                        {targets.find(t => t.id === activeTargetId)?.connection_name}
+                      </>
+                    ) : (
+                      <span className="text-white/50">No Target</span>
+                    )}
                   </span>
                   <svg className={`w-4 h-4 text-white/50 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                 </button>
@@ -754,30 +791,35 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 {showProviderDropdown && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />
-                    <div className="absolute top-full mt-2 right-0 w-48 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 animate-fade-in-up">
-                      {[
-                        { id: 'supabase', label: 'Supabase', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />, color: 'text-emerald-400' },
-                        { id: 'aws_s3', label: 'AWS S3', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />, color: 'text-orange-400' },
-                        { id: 'cloudinary', label: 'Cloudinary', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />, color: 'text-blue-400' }
-                      ].map((prov) => (
-                        <button
-                          key={prov.id}
-                          onClick={() => {
-                            setUploadProvider(prov.id as any);
-                            localStorage.setItem('upload_provider', prov.id);
-                            setShowProviderDropdown(false);
-                          }}
-                          className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${uploadProvider === prov.id ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white font-medium'}`}
-                        >
-                          <svg className={`w-4 h-4 ${prov.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {prov.icon}
-                          </svg>
-                          {prov.label}
-                          {uploadProvider === prov.id && (
-                            <svg className="w-4 h-4 ml-auto text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                          )}
-                        </button>
-                      ))}
+                    <div className="absolute top-full mt-2 right-0 w-64 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 animate-fade-in-up">
+                      {targets.length === 0 ? (
+                        <div className="p-3 text-sm text-white/50 text-center">No targets configured</div>
+                      ) : (
+                        targets.map((prov) => (
+                          <button
+                            key={prov.id}
+                            onClick={() => {
+                              setActiveTargetId(prov.id);
+                              localStorage.setItem('active_target_id', prov.id);
+                              setShowProviderDropdown(false);
+                            }}
+                            className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${activeTargetId === prov.id ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white font-medium'}`}
+                          >
+                            <span className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center shrink-0">
+                              {prov.provider_type === 'SUPABASE' && <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                              {prov.provider_type === 'AWS_S3' && <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
+                              {prov.provider_type === 'CLOUDINARY' && <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                              {prov.provider_type === 'GOOGLE_DRIVE' && <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                            </span>
+                            <span className="flex-1 truncate">{prov.connection_name}</span>
+                            {activeTargetId === prov.id && (
+                              <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        ))
+                      )}
                     </div>
                   </>
                 )}

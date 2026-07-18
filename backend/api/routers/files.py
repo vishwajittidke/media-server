@@ -81,31 +81,32 @@ def get_file_hash(data: bytes) -> str:
 # ── URL resolution ───────────────────────────────────────────────────────────
 
 def resolve_file_urls(f: DBFile):
-    """
-    Return (thumbnail_url, preview_url) for a file.
-    
-    IMPORTANT: Always try Supabase first if configured, even for old files
-    whose storage_path still points to /uploads/... (local disk).
-    This handles the case where files were uploaded before Supabase was added.
-    """
     object_path = f"photos/{f.sha256}{f.extension}"
+    thumbnail_url = f.thumbnail_path or f"/api/v1/files/thumb/{f.stored_name}"
+    preview_url = f"/api/v1/files/preview/{f.stored_name}"
     
-    if _sb_configured():
-        bucket = settings.SUPABASE_BUCKET
-        base = f"{settings.SUPABASE_URL}/storage/v1/object/public/{bucket}"
-        
-        # Point to the physically uploaded thumbnails we generate
-        thumbnail_url = f"{base}/photos/thumbs/{f.sha256}{f.extension}"
-        preview_url   = f"{base}/photos/previews/{f.sha256}{f.extension}"
-        
-        # If storage_path is still a local path, the frontend will fallback to it via onError if needed
+    if getattr(f, 'target', None) and getattr(f.target, 'encrypted_credentials', None):
+        try:
+            from core.storage import StorageManager
+            from core.security import decrypt_credentials
+            creds = decrypt_credentials(f.target.encrypted_credentials)
+            manager = StorageManager(f.target.provider_type, creds)
+            
+            thumb_path = f"photos/thumbs/{f.sha256}{f.extension}"
+            preview_path = f"photos/previews/{f.sha256}{f.extension}"
+            
+            resolved_thumb = manager.get_url(thumb_path)
+            resolved_prev = manager.get_url(preview_path)
+            
+            if resolved_thumb: thumbnail_url = resolved_thumb
+            if resolved_prev: preview_url = resolved_prev
+        except Exception as e:
+            print(f"Error resolving target URLs: {e}")
+            
     elif f.storage_path and f.storage_path.startswith("http"):
         thumbnail_url = f.storage_path
-        preview_url   = f.storage_path
-    else:
-        thumbnail_url = f.thumbnail_path or f"/api/v1/files/thumb/{f.stored_name}"
-        preview_url   = f"/api/v1/files/preview/{f.stored_name}"
-    
+        preview_url = f.storage_path
+        
     return thumbnail_url, preview_url
 
 
@@ -116,6 +117,7 @@ def resolve_file_urls(f: DBFile):
 async def upload_files(
     request: Request,
     files: List[UploadFile] = FastAPIFile(...),
+    target_id: Optional[str] = Form(None),
     folder_id: Optional[str] = Form(None),
     date_taken: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
@@ -209,21 +211,38 @@ async def upload_files(
                 except Exception as e:
                     print(f"Thumbnail generation error: {e}")
 
-            # ── 2. Upload to Supabase Storage ──────────────────────────────
-            if _sb_configured():
-                try:
-                    storage_path = _sb_upload(object_path, raw_bytes, mime_type)
-                    if thumb_bytes:
-                        _sb_upload(f"photos/thumbs/{stored_name}", thumb_bytes, "image/jpeg")
-                    if preview_bytes:
-                        _sb_upload(f"photos/previews/{stored_name}", preview_bytes, "image/jpeg")
+            # ── 2. Upload to Selected Storage Target ──────────────────────────────
+            target_ok = False
+            
+            if target_id:
+                from models import StorageTarget
+                from core.storage import StorageManager
+                from core.security import decrypt_credentials
+                
+                target = db.query(StorageTarget).filter(
+                    StorageTarget.id == target_id, 
+                    StorageTarget.owner_id == current_user.id
+                ).first()
+                
+                if target and target.encrypted_credentials:
+                    try:
+                        creds = decrypt_credentials(target.encrypted_credentials)
+                        manager = StorageManager(target.provider_type, creds)
                         
-                    supabase_ok = True
-                    print(f"✅ Supabase upload OK: {original_name} → {object_path}")
-                except Exception as e:
-                    import traceback
-                    print(f"❌ Supabase upload failed for {original_name}: {e}")
-                    traceback.print_exc()
+                        storage_path = manager.upload(object_path, raw_bytes, mime_type)
+                        
+                        # Upload thumbs if the provider supports folder-like paths
+                        if thumb_bytes:
+                            manager.upload(f"photos/thumbs/{stored_name}", thumb_bytes, "image/jpeg")
+                        if preview_bytes:
+                            manager.upload(f"photos/previews/{stored_name}", preview_bytes, "image/jpeg")
+                            
+                        target_ok = True
+                        print(f"✅ Target upload OK: {original_name} -> {target.provider_type}")
+                    except Exception as e:
+                        import traceback
+                        print(f"❌ Target upload failed for {original_name}: {e}")
+                        traceback.print_exc()
 
             # ── Parse date_taken ──────────────────────────────────────────
             parsed_date = None
@@ -237,6 +256,7 @@ async def upload_files(
             db_file = DBFile(
                 owner_id=current_user.id,
                 folder_id=folder_id,
+                target_id=target_id,
                 original_name=original_name,
                 stored_name=stored_name,
                 extension=ext,
@@ -254,7 +274,7 @@ async def upload_files(
             db.flush()
 
             # ── Local fallback (saves to DB and cache if Supabase not configured) ──
-            if not supabase_ok:
+            if not target_ok:
                 db_data_original = FileData(file_id=db_file.id, kind="original", data=raw_bytes)
                 db.add(db_data_original)
                 
@@ -302,13 +322,31 @@ async def upload_files(
 # ── List files ───────────────────────────────────────────────────────────────
 
 @router.get("/storage")
-def get_storage_usage(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from sqlalchemy import func
     base_filter = (DBFile.owner_id == current_user.id) & (DBFile.deleted_at == None)
+    
+    if target_id:
+        base_filter = base_filter & (DBFile.target_id == target_id)
+        
     used = db.query(func.sum(DBFile.file_size)).filter(base_filter).scalar()
     file_count = db.query(func.count(DBFile.id)).filter(base_filter).scalar()
-    # Let's say free tier gives 150MB per user
-    limit = 150 * 1024 * 1024
+    
+    limit = 150 * 1024 * 1024  # Default 150MB
+    
+    if target_id:
+        from models import StorageTarget, ProviderTypeEnum
+        target = db.query(StorageTarget).filter(StorageTarget.id == target_id, StorageTarget.owner_id == current_user.id).first()
+        if target:
+            if target.provider_type == ProviderTypeEnum.AWS_S3:
+                limit = 5 * 1024 * 1024 * 1024  # 5 GB
+            elif target.provider_type == ProviderTypeEnum.SUPABASE:
+                limit = 1 * 1024 * 1024 * 1024  # 1 GB
+            elif target.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
+                limit = 15 * 1024 * 1024 * 1024 # 15 GB
+            elif target.provider_type == ProviderTypeEnum.CLOUDINARY:
+                limit = 25 * 1024 * 1024 * 1024 # 25 GB
+                
     return {"used": used or 0, "limit": limit, "file_count": file_count or 0}
 
 @router.get("/admin/stats")
@@ -335,6 +373,7 @@ def get_admin_stats(current_user: User = Depends(get_current_user), db: Session 
 @router.get("/")
 def list_files(
     folder_id: Optional[str] = None,
+    target_id: Optional[str] = None,
     is_favorite: Optional[str] = None,
     search: Optional[str] = None,
     skip: int = 0,
@@ -349,14 +388,19 @@ def list_files(
     if current_user.role.value != "ADMIN":
         query = query.filter(DBFile.owner_id == current_user.id)
 
+    if folder_id == "root":
+        query = query.filter(DBFile.folder_id == None)
+    elif folder_id:
+        query = query.filter(DBFile.folder_id == folder_id)
+        
+    if target_id:
+        query = query.filter(DBFile.target_id == target_id)
 
     if search:
         query = query.filter(DBFile.original_name.ilike(f"%{search}%"))
     else:
         if is_favorite and is_favorite.lower() == "true":
             query = query.filter(DBFile.is_favorite == True)
-        elif folder_id:
-            query = query.filter(DBFile.folder_id == folder_id)
         else:
             query = query.filter(DBFile.folder_id == None)
 
