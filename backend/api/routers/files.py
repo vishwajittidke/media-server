@@ -347,24 +347,33 @@ def download_file(
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # If stored on Supabase, proxy the file stream to avoid frontend CORS issues
+    # If stored on Supabase, try to proxy the file stream
     if db_file.storage_path and db_file.storage_path.startswith("http"):
-        def iterfile():
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"}
-            with requests.get(db_file.storage_path, headers=headers, stream=True) as r:
-                if r.status_code != 200:
-                    raise HTTPException(status_code=r.status_code, detail=f"Failed to fetch from Supabase. Status: {r.status_code}")
-                for chunk in r.iter_content(chunk_size=8192):
-                    yield chunk
-
-        return StreamingResponse(
-            iterfile(),
-            media_type=db_file.mime_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{db_file.original_name}"',
-                "Access-Control-Expose-Headers": "Content-Disposition"
-            }
-        )
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"}
+        try:
+            r = requests.get(db_file.storage_path, headers=headers, stream=True, timeout=10)
+            if r.status_code == 200:
+                def iterfile():
+                    try:
+                        for chunk in r.iter_content(chunk_size=8192):
+                            yield chunk
+                    finally:
+                        r.close()
+                return StreamingResponse(
+                    iterfile(),
+                    media_type=db_file.mime_type,
+                    headers={
+                        "Content-Disposition": f'attachment; filename="{db_file.original_name}"',
+                        "Access-Control-Expose-Headers": "Content-Disposition"
+                    }
+                )
+            else:
+                r.close()
+                # Supabase returned 404 or 403, fallback to DB
+                pass
+        except Exception as e:
+            # Network error connecting to Supabase, fallback to DB
+            pass
 
     # Local fallback: Use the smart serve_file logic which handles DB recovery
     return serve_file(db_file.stored_name, "original", settings.UPLOADS_DIR, db)
