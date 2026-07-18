@@ -747,142 +747,148 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             </button>
           )}
 
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 w-full sm:w-auto">
-            <div className="flex items-center premium-btn !p-1 sm:!p-1.5 space-x-1 sm:space-x-2 !overflow-visible z-50">
-              <label className="cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors h-full">
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <span className="text-sm sm:text-base font-medium whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>
-                <input 
-                  type="file" 
-                  multiple 
-                  className="hidden" 
-                  ref={fileInputRef}
-                  onChange={handleUpload}
-                  disabled={uploading}
-                />
-              </label>
-              
-              <div className="h-6 w-px bg-white/20 hidden sm:block"></div>
-              
-              <div className="relative">
-                <button 
-                  onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-                  className="flex items-center justify-between min-w-[120px] bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 px-3 transition-all cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/50"
-                  disabled={uploading}
-                >
-                  <span className="flex items-center gap-1.5 truncate max-w-[150px]">
-                    {activeTargetId && targets.find(t => t.id === activeTargetId) ? (
-                      <>
-                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'SUPABASE' && <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
-                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'AWS_S3' && <svg className="w-4 h-4 text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
-                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'CLOUDINARY' && <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
-                        {targets.find(t => t.id === activeTargetId)?.provider_type === 'GOOGLE_DRIVE' && <svg className="w-4 h-4 text-yellow-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
-                        {targets.find(t => t.id === activeTargetId)?.connection_name}
-                      </>
-                    ) : (
-                      <span className="text-white/50">No Target</span>
-                    )}
-                  </span>
-                  <svg className={`w-4 h-4 text-white/50 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                </button>
+          <div className="flex flex-col lg:flex-row items-center gap-3 lg:gap-4 w-full sm:w-auto">
+            {/* Primary Actions */}
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+              <div className="flex items-center premium-btn !p-1 sm:!p-1.5 space-x-1 sm:space-x-1.5 !overflow-visible z-50">
+                <label className="cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors h-full">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <span className="text-sm sm:text-base font-medium whitespace-nowrap">{uploading ? '...' : 'Upload'}</span>
+                  <input 
+                    type="file" 
+                    multiple 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleUpload}
+                    disabled={uploading}
+                  />
+                </label>
                 
-                {showProviderDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />
-                    <div className="absolute top-full mt-2 right-0 w-64 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 animate-fade-in-up">
-                      {targets.length === 0 ? (
-                        <div className="p-3 text-sm text-white/50 text-center">No targets configured</div>
+                <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
+                
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                    className="flex items-center justify-between min-w-[130px] bg-transparent hover:bg-white/5 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 px-3 transition-all cursor-pointer outline-none"
+                    disabled={uploading}
+                  >
+                    <span className="flex items-center gap-2 truncate max-w-[150px]">
+                      {activeTargetId && targets.find(t => t.id === activeTargetId) ? (
+                        <>
+                          {targets.find(t => t.id === activeTargetId)?.provider_type === 'SUPABASE' && <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                          {targets.find(t => t.id === activeTargetId)?.provider_type === 'AWS_S3' && <svg className="w-4 h-4 text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
+                          {targets.find(t => t.id === activeTargetId)?.provider_type === 'CLOUDINARY' && <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                          {targets.find(t => t.id === activeTargetId)?.provider_type === 'GOOGLE_DRIVE' && <svg className="w-4 h-4 text-yellow-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                          <span className="truncate">{targets.find(t => t.id === activeTargetId)?.connection_name}</span>
+                        </>
                       ) : (
-                        targets.map((prov) => (
-                          <button
-                            key={prov.id}
-                            onClick={() => {
-                              setActiveTargetId(prov.id);
-                              localStorage.setItem('active_target_id', prov.id);
-                              setShowProviderDropdown(false);
-                            }}
-                            className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${activeTargetId === prov.id ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white font-medium'}`}
-                          >
-                            <span className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center shrink-0">
-                              {prov.provider_type === 'SUPABASE' && <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
-                              {prov.provider_type === 'AWS_S3' && <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
-                              {prov.provider_type === 'CLOUDINARY' && <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
-                              {prov.provider_type === 'GOOGLE_DRIVE' && <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
-                            </span>
-                            <span className="flex-1 truncate">{prov.connection_name}</span>
-                            {activeTargetId === prov.id && (
-                              <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        ))
+                        <span className="text-white/50">No Target</span>
                       )}
-                    </div>
-                  </>
-                )}
+                    </span>
+                    <svg className={`w-4 h-4 ml-2 text-white/50 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  
+                  {showProviderDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />
+                      <div className="absolute top-full mt-2 right-0 w-64 bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 animate-fade-in-up">
+                        {targets.length === 0 ? (
+                          <div className="p-3 text-sm text-white/50 text-center">No targets configured</div>
+                        ) : (
+                          targets.map((prov) => (
+                            <button
+                              key={prov.id}
+                              onClick={() => {
+                                setActiveTargetId(prov.id);
+                                localStorage.setItem('active_target_id', prov.id);
+                                setShowProviderDropdown(false);
+                              }}
+                              className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${activeTargetId === prov.id ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white font-medium'}`}
+                            >
+                              <span className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center shrink-0">
+                                {prov.provider_type === 'SUPABASE' && <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                                {prov.provider_type === 'AWS_S3' && <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
+                                {prov.provider_type === 'CLOUDINARY' && <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                                {prov.provider_type === 'GOOGLE_DRIVE' && <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                              </span>
+                              <span className="flex-1 truncate">{prov.connection_name}</span>
+                              {activeTargetId === prov.id && (
+                                <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-            <button 
-              onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}
-              className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap flex-1 justify-center sm:flex-none"
-            >
-              {isSelectMode ? 'Cancel' : 'Select'}
-            </button>
-            <button 
-              onClick={() => setShowStorageModal(true)}
-              className="premium-btn xl:hidden !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"
-              title="Storage Stats"
-            >
-              <svg className="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
-            </button>
-            <button 
-              onClick={() => setShowSettingsModal(true)}
-              className="premium-btn !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"
-              title="Settings"
-            >
-              <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            </button>
-            <div className="hidden sm:flex items-center gap-2 bg-white/5 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10" title="Grid Size">
-              <button onClick={() => setGridScale(Math.max(2, gridScale - 1))} className="text-white/50 hover:text-white transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" /></svg>
+              
+              <button 
+                onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}
+                className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap"
+              >
+                {isSelectMode ? 'Cancel' : 'Select'}
               </button>
-              <input 
-                type="range" min="2" max="10" step="1" 
-                value={gridScale} 
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  setGridScale(val);
-                  localStorage.setItem('gallery_grid_scale', val.toString());
+            </div>
+
+            {/* Secondary Actions & View Controls */}
+            <div className="flex items-center justify-center gap-2 sm:gap-3">
+              <button 
+                onClick={() => setShowStorageModal(true)}
+                className="premium-btn xl:hidden !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"
+                title="Storage Stats"
+              >
+                <svg className="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+              </button>
+              
+              <div className="hidden sm:flex items-center gap-2 bg-white/5 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10 shadow-inner" title="Grid Size">
+                <button onClick={() => setGridScale(Math.max(2, gridScale - 1))} className="text-white/40 hover:text-white transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" /></svg>
+                </button>
+                <input 
+                  type="range" min="2" max="10" step="1" 
+                  value={gridScale} 
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setGridScale(val);
+                    localStorage.setItem('gallery_grid_scale', val.toString());
+                  }}
+                  className="w-20 accent-white/80 cursor-pointer h-1.5 bg-white/10 rounded-lg appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md"
+                />
+                <button onClick={() => setGridScale(Math.min(10, gridScale + 1))} className="text-white/40 hover:text-white transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                </button>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  const next = layout === 'grid' ? 'masonry' : 'grid';
+                  setLayout(next);
+                  localStorage.setItem('gallery_layout', next);
                 }}
-                className="w-20 accent-white/80 cursor-pointer h-1 bg-white/20 rounded-lg appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-              />
-              <button onClick={() => setGridScale(Math.min(10, gridScale + 1))} className="text-white/50 hover:text-white transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                className="hidden sm:flex premium-btn !p-2 !bg-white/5 hover:!bg-white/10 border border-white/10"
+                title={layout === 'grid' ? 'Switch to Masonry' : 'Switch to Grid'}
+              >
+                {layout === 'grid' ? (
+                  <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                ) : (
+                  <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v10a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" /></svg>
+                )}
+              </button>
+
+              <button 
+                onClick={() => setShowSettingsModal(true)}
+                className="premium-btn !p-2 !bg-white/10 hover:!bg-white/20 border border-white/10"
+                title="Settings"
+              >
+                <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
               </button>
             </div>
-            
-            <button 
-              onClick={() => {
-                const next = layout === 'grid' ? 'masonry' : 'grid';
-                setLayout(next);
-                localStorage.setItem('gallery_layout', next);
-              }}
-              className="premium-btn !px-3 sm:!px-4 !py-1.5 sm:!py-2.5 !bg-white/10 hover:!bg-white/20 whitespace-nowrap flex items-center justify-center shrink-0"
-              title={layout === 'grid' ? 'Switch to Masonry' : 'Switch to Grid'}
-            >
-              {layout === 'grid' ? (
-                <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h7v5H3zM14 3h7v8H14zM3 10h7v11H3zM14 13h7v8H14z" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h7v7H3zM14 3h7v7H14zM3 14h7v7H3zM14 14h7v7H14z" />
-                </svg>
-              )}
-            </button>
           </div>
           
           <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar justify-start sm:justify-center px-4 w-full sm:w-auto">
