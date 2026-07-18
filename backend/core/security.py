@@ -20,3 +20,24 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
+from cryptography.fernet import Fernet
+import json
+
+def get_fernet() -> Fernet:
+    if not settings.MASTER_ENCRYPTION_KEY:
+        raise ValueError("MASTER_ENCRYPTION_KEY is not set in environment. Cannot encrypt/decrypt credentials.")
+    return Fernet(settings.MASTER_ENCRYPTION_KEY.encode('utf-8'))
+
+def encrypt_credentials(creds_dict: dict) -> str:
+    f = get_fernet()
+    json_str = json.dumps(creds_dict)
+    return f.encrypt(json_str.encode('utf-8')).decode('utf-8')
+
+def decrypt_credentials(encrypted_str: str) -> dict:
+    f = get_fernet()
+    json_str = f.decrypt(encrypted_str.encode('utf-8')).decode('utf-8')
+    return json.loads(json_str)
+
+def generate_master_key() -> str:
+    return Fernet.generate_key().decode('utf-8')

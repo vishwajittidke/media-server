@@ -16,6 +16,12 @@ class UploadStatusEnum(enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
+class ProviderTypeEnum(enum.Enum):
+    AWS_S3 = "AWS_S3"
+    GOOGLE_DRIVE = "GOOGLE_DRIVE"
+    CLOUDINARY = "CLOUDINARY"
+    SUPABASE = "SUPABASE"
+
 class User(Base):
     __tablename__ = "users"
 
@@ -30,6 +36,7 @@ class User(Base):
 
     files = relationship("File", back_populates="owner")
     folders = relationship("Folder", back_populates="owner")
+    targets = relationship("StorageTarget", back_populates="owner")
 
 class Folder(Base):
     __tablename__ = "folders"
@@ -44,12 +51,28 @@ class Folder(Base):
     files = relationship("File", back_populates="folder")
     subfolders = relationship("Folder")
 
+class StorageTarget(Base):
+    __tablename__ = "storage_targets"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    owner_id = Column(String(36), ForeignKey("users.id"))
+    provider_type = Column(Enum(ProviderTypeEnum))
+    connection_name = Column(String)
+    encrypted_credentials = Column(String)  # Fernet encrypted JSON string
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    owner = relationship("User", back_populates="targets")
+    files = relationship("File", back_populates="target")
+
 class File(Base):
     __tablename__ = "files"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     owner_id = Column(String(36), ForeignKey("users.id"))
     folder_id = Column(String(36), ForeignKey("folders.id"), nullable=True)
+    target_id = Column(String(36), ForeignKey("storage_targets.id"), nullable=True)
     original_name = Column(String)
     stored_name = Column(String, unique=True)
     extension = Column(String)
@@ -69,6 +92,7 @@ class File(Base):
 
     owner = relationship("User", back_populates="files")
     folder = relationship("Folder", back_populates="files")
+    target = relationship("StorageTarget", back_populates="files")
     tags = relationship("Tag", secondary="file_tags")
     file_data_list = relationship("FileData", back_populates="file", cascade="all, delete-orphan")
 

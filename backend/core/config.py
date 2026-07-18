@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days
     DATABASE_URL: str = "sqlite:///../database/photodb.sqlite"  # Override with PostgreSQL on Render via env var
     FRONTEND_URL: str = "http://localhost:5173"
+    MASTER_ENCRYPTION_KEY: str = ""  # Base64 Fernet key to encrypt credentials
 
     # Supabase Storage (replaces Cloudinary)
     # Get these from: Supabase Dashboard → Settings → API

@@ -28,6 +28,10 @@ try:
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS date_taken TIMESTAMP;"))
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;"))
         conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS thumbnail_path VARCHAR;"))
+        try:
+            conn.execute(text("ALTER TABLE files ADD COLUMN target_id VARCHAR(36);"))
+        except Exception:
+            pass # Ignore if it exists
         conn.commit()
 except Exception as e:
     print(f"Migration note (may already exist): {e}")
