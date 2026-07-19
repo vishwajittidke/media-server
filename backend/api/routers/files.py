@@ -231,12 +231,6 @@ async def upload_files(
                         
                         storage_path = manager.upload(object_path, raw_bytes, mime_type)
                         
-                        # Upload thumbs if the provider supports folder-like paths
-                        if thumb_bytes:
-                            manager.upload(f"photos/thumbs/{stored_name}", thumb_bytes, "image/jpeg")
-                        if preview_bytes:
-                            manager.upload(f"photos/previews/{stored_name}", preview_bytes, "image/jpeg")
-                            
                         target_ok = True
                         print(f"✅ Target upload OK: {original_name} -> {target.provider_type}")
                     except Exception as e:
@@ -283,28 +277,32 @@ async def upload_files(
             db.add(db_file)
             db.flush()
 
-            # ── Local fallback (saves to DB and cache if Supabase not configured) ──
+            # ── 3. Local fallback & Caching ───────────────────────────────────────
             if not target_ok:
                 db_data_original = FileData(file_id=db_file.id, kind="original", data=raw_bytes)
                 db.add(db_data_original)
-                
-                if thumb_bytes:
-                    db.add(FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes))
-                if preview_bytes:
-                    db.add(FileData(file_id=db_file.id, kind="preview", data=preview_bytes))
-                
-                # 2. Write to local disk cache for fast serving
                 try:
                     with open(os.path.join(settings.UPLOADS_DIR, stored_name), "wb") as fout:
                         fout.write(raw_bytes)
-                    if thumb_bytes:
-                        with open(os.path.join(settings.THUMBNAILS_DIR, stored_name), "wb") as fout:
-                            fout.write(thumb_bytes)
-                    if preview_bytes:
-                        with open(os.path.join(settings.PREVIEWS_DIR, stored_name), "wb") as fout:
-                            fout.write(preview_bytes)
                 except Exception as e:
-                    print(f"Cache write error: {e}")
+                    print(f"Cache write error (original): {e}")
+
+            # Always save thumbnails & previews to local DB/Disk for instant loading
+            if thumb_bytes:
+                db.add(FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes))
+                try:
+                    with open(os.path.join(settings.THUMBNAILS_DIR, stored_name), "wb") as fout:
+                        fout.write(thumb_bytes)
+                except Exception as e:
+                    pass
+
+            if preview_bytes:
+                db.add(FileData(file_id=db_file.id, kind="preview", data=preview_bytes))
+                try:
+                    with open(os.path.join(settings.PREVIEWS_DIR, stored_name), "wb") as fout:
+                        fout.write(preview_bytes)
+                except Exception as e:
+                    pass
 
             db.commit()
             db.refresh(db_file)
