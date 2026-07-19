@@ -217,3 +217,189 @@ class StorageManager:
         except Exception as e:
             print(f"Failed to fetch live stats for {self.provider_type}: {e}")
             return None
+
+    def list_files(self) -> list:
+        """
+        List files in the target storage.
+        Returns a list of dictionaries with 'name', 'id' (or path), and 'url' (if available).
+        """
+        files = []
+        try:
+            if self.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
+                if self.credentials.get('refresh_token'):
+                    creds = google_credentials.Credentials(
+                        token=None,
+                        refresh_token=self.credentials.get('refresh_token'),
+                        client_id=self.credentials.get('client_id'),
+                        client_secret=self.credentials.get('client_secret'),
+                        token_uri='https://oauth2.googleapis.com/token',
+                        scopes=['https://www.googleapis.com/auth/drive']
+                    )
+                else:
+                    service_account_info = json.loads(self.credentials.get('service_account_json', '{}'))
+                    creds = service_account.Credentials.from_service_account_info(
+                        service_account_info,
+                        scopes=['https://www.googleapis.com/auth/drive']
+                    )
+                drive_service = build('drive', 'v3', credentials=creds)
+                
+                folder_id = self.credentials.get('folder_id')
+                q = "mimeType contains 'image/'"
+                if folder_id:
+                    q += f" and '{folder_id}' in parents"
+                    
+                results = drive_service.files().list(
+                    q=q,
+                    fields="files(id, name, mimeType, webViewLink, webContentLink)"
+                ).execute()
+                
+                for item in results.get('files', []):
+                    files.append({
+                        'id': item.get('id'),
+                        'name': item.get('name'),
+                        'url': item.get('webViewLink'),
+                        'mime_type': item.get('mimeType')
+                    })
+                    
+            elif self.provider_type == ProviderTypeEnum.AWS_S3:
+                s3 = boto3.client(
+                    's3',
+                    region_name=self.credentials.get('region', 'us-east-1'),
+                    aws_access_key_id=self.credentials.get('access_key'),
+                    aws_secret_access_key=self.credentials.get('secret_key')
+                )
+                bucket = self.credentials.get('bucket')
+                response = s3.list_objects_v2(Bucket=bucket)
+                if 'Contents' in response:
+                    for item in response['Contents']:
+                        key = item['Key']
+                        # Basic image filter
+                        if key.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+                            files.append({
+                                'id': key,
+                                'name': key.split('/')[-1],
+                                'url': self.get_url(key)
+                            })
+                            
+            elif self.provider_type == ProviderTypeEnum.SUPABASE:
+                supabase_url = self.credentials.get('supabase_url')
+                supabase_key = self.credentials.get('supabase_key')
+                bucket = self.credentials.get('supabase_bucket')
+                
+                url = f"{supabase_url}/storage/v1/object/list/{bucket}"
+                headers = {
+                    "Authorization": f"Bearer {supabase_key}",
+                    "apikey": supabase_key,
+                    "Content-Type": "application/json",
+                }
+                # Empty prefix lists root directory
+                resp = requests.post(url, headers=headers, json={"prefix": "", "limit": 1000}, timeout=30)
+                if resp.status_code == 200:
+                    for item in resp.json():
+                        name = item.get('name')
+                        if name and name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')) and not name.startswith('.'):
+                            files.append({
+                                'id': name,
+                                'name': name.split('/')[-1],
+                                'url': self.get_url(name)
+                            })
+                            
+            elif self.provider_type == ProviderTypeEnum.CLOUDINARY:
+                cloudinary.config(
+                    cloud_name=self.credentials.get('cloud_name'),
+                    api_key=self.credentials.get('api_key'),
+                    api_secret=self.credentials.get('api_secret')
+                )
+                import cloudinary.api
+                resp = cloudinary.api.resources(resource_type="image", max_results=100)
+                for item in resp.get('resources', []):
+                    files.append({
+                        'id': item.get('public_id') + '.' + item.get('format'),
+                        'name': item.get('public_id').split('/')[-1] + '.' + item.get('format'),
+                        'url': item.get('secure_url')
+                    })
+        except Exception as e:
+            print(f"Failed to list files for {self.provider_type}: {e}")
+            
+        return files
+
+    def download_file(self, file_id: str) -> bytes:
+        """
+        Download a file from the target storage into memory.
+        """
+        try:
+            if self.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
+                if self.credentials.get('refresh_token'):
+                    creds = google_credentials.Credentials(
+                        token=None,
+                        refresh_token=self.credentials.get('refresh_token'),
+                        client_id=self.credentials.get('client_id'),
+                        client_secret=self.credentials.get('client_secret'),
+                        token_uri='https://oauth2.googleapis.com/token',
+                        scopes=['https://www.googleapis.com/auth/drive']
+                    )
+                else:
+                    service_account_info = json.loads(self.credentials.get('service_account_json', '{}'))
+                    creds = service_account.Credentials.from_service_account_info(
+                        service_account_info,
+                        scopes=['https://www.googleapis.com/auth/drive']
+                    )
+                drive_service = build('drive', 'v3', credentials=creds)
+                
+                request = drive_service.files().get_media(fileId=file_id)
+                fh = io.BytesIO()
+                from googleapiclient.http import MediaIoBaseDownload
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while done is False:
+                    status, done = downloader.next_chunk()
+                return fh.getvalue()
+                
+            elif self.provider_type == ProviderTypeEnum.AWS_S3:
+                s3 = boto3.client(
+                    's3',
+                    region_name=self.credentials.get('region', 'us-east-1'),
+                    aws_access_key_id=self.credentials.get('access_key'),
+                    aws_secret_access_key=self.credentials.get('secret_key')
+                )
+                bucket = self.credentials.get('bucket')
+                response = s3.get_object(Bucket=bucket, Key=file_id)
+                return response['Body'].read()
+                
+            elif self.provider_type == ProviderTypeEnum.SUPABASE:
+                supabase_url = self.credentials.get('supabase_url')
+                supabase_key = self.credentials.get('supabase_key')
+                bucket = self.credentials.get('supabase_bucket')
+                
+                url = f"{supabase_url}/storage/v1/object/public/{bucket}/{file_id}"
+                resp = requests.get(url, timeout=60)
+                if resp.status_code == 200:
+                    return resp.content
+                else:
+                    # Try authenticated download if public fails
+                    url = f"{supabase_url}/storage/v1/object/{bucket}/{file_id}"
+                    headers = {
+                        "Authorization": f"Bearer {supabase_key}",
+                        "apikey": supabase_key,
+                    }
+                    resp = requests.get(url, headers=headers, timeout=60)
+                    return resp.content
+                    
+            elif self.provider_type == ProviderTypeEnum.CLOUDINARY:
+                # Need to download via the secure_url
+                cloudinary.config(
+                    cloud_name=self.credentials.get('cloud_name'),
+                    api_key=self.credentials.get('api_key'),
+                    api_secret=self.credentials.get('api_secret')
+                )
+                import cloudinary.api
+                public_id = file_id.split('.')[0]
+                details = cloudinary.api.resource(public_id)
+                resp = requests.get(details['secure_url'], timeout=60)
+                return resp.content
+                
+        except Exception as e:
+            print(f"Failed to download file {file_id} for {self.provider_type}: {e}")
+            return b""
+        
+        return b""

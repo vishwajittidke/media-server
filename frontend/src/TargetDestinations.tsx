@@ -105,6 +105,26 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
     }
   };
 
+  const handleSync = async (id: string) => {
+    if (!confirm("This will scan your remote bucket and pull all images into the database. Depending on the size of your bucket, this may take a while. Proceed?")) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const res = await fetch(`${apiUrl}/targets/${id}/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert("Sync started in the background! Please check the system logs in a few minutes to see the progress.");
+      } else {
+        const errorText = await res.text();
+        alert(`Failed to start sync: ${errorText}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(`Error starting sync: ${e.message}`);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-fade-in-up">
       <div className="bg-slate-900 border border-white/10 rounded-[32px] w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl">
@@ -191,6 +211,7 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
                   </h3>
                   {editingTarget?.id && (
                     <div className="flex gap-2">
+                      <button type="button" onClick={() => handleSync(editingTarget.id!)} className="px-4 py-2 text-sm font-medium bg-emerald-500/20 text-emerald-400 rounded-full hover:bg-emerald-500/30 transition-colors">Sync Files</button>
                       <button type="button" onClick={() => handleDelete(editingTarget.id!)} className="px-4 py-2 text-sm font-medium bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition-colors">Delete</button>
                     </div>
                   )}
