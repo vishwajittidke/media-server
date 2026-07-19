@@ -326,27 +326,42 @@ def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depe
     from sqlalchemy import func
     base_filter = (DBFile.owner_id == current_user.id) & (DBFile.deleted_at == None)
     
-    if target_id:
+    if target_id and target_id != "local":
         base_filter = base_filter & (DBFile.target_id == target_id)
+    elif target_id == "local":
+        base_filter = base_filter & (DBFile.target_id == None)
         
     used = db.query(func.sum(DBFile.file_size)).filter(base_filter).scalar()
     file_count = db.query(func.count(DBFile.id)).filter(base_filter).scalar()
     
-    limit = 150 * 1024 * 1024  # Default 150MB
+    limit = 150 * 1024 * 1024  # Default 150MB for local
     
-    if target_id:
+    if target_id and target_id != "local":
         from models import StorageTarget, ProviderTypeEnum
         target = db.query(StorageTarget).filter(StorageTarget.id == target_id, StorageTarget.owner_id == current_user.id).first()
         if target:
             if target.provider_type == ProviderTypeEnum.AWS_S3:
-                limit = 5 * 1024 * 1024 * 1024  # 5 GB
+                limit = 5 * 1024 * 1024 * 1024
             elif target.provider_type == ProviderTypeEnum.SUPABASE:
-                limit = 1 * 1024 * 1024 * 1024  # 1 GB
+                limit = 1 * 1024 * 1024 * 1024
             elif target.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
-                limit = 15 * 1024 * 1024 * 1024 # 15 GB
+                limit = 15 * 1024 * 1024 * 1024
             elif target.provider_type == ProviderTypeEnum.CLOUDINARY:
-                limit = 25 * 1024 * 1024 * 1024 # 25 GB
-                
+                limit = 25 * 1024 * 1024 * 1024
+    elif not target_id:
+        # All Sources: sum of local + all configured targets
+        from models import StorageTarget, ProviderTypeEnum
+        targets = db.query(StorageTarget).filter(StorageTarget.owner_id == current_user.id).all()
+        for t in targets:
+            if t.provider_type == ProviderTypeEnum.AWS_S3:
+                limit += 5 * 1024 * 1024 * 1024
+            elif t.provider_type == ProviderTypeEnum.SUPABASE:
+                limit += 1 * 1024 * 1024 * 1024
+            elif t.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
+                limit += 15 * 1024 * 1024 * 1024
+            elif t.provider_type == ProviderTypeEnum.CLOUDINARY:
+                limit += 25 * 1024 * 1024 * 1024
+
     return {"used": used or 0, "limit": limit, "file_count": file_count or 0}
 
 @router.get("/admin/stats")

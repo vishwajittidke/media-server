@@ -1436,7 +1436,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             </div>
             
             <div className="text-center text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">
-              {activeTargetId && targets.find(t => t.id === activeTargetId) ? targets.find(t => t.id === activeTargetId)?.connection_name : 'Local Storage'}
+              {activeTargetId && targets.find(t => t.id === activeTargetId) ? targets.find(t => t.id === activeTargetId)?.connection_name : 'All Sources Storage'}
             </div>
             <h3 className="text-2xl font-bold mb-1 text-white text-center tracking-tight">Storage Usage</h3>
             <p className={`text-center text-xs font-semibold mb-6 ${statusColor}`}>
