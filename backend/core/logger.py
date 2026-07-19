@@ -65,8 +65,8 @@ def log_system_event(
         if stack_trace:
             py_logger.error(stack_trace)
 
-    # Database logging
-    session = db if db else SessionLocal()
+    # Database logging - ALWAYS use a fresh session to avoid dirty session issues
+    session = SessionLocal()
     try:
         new_log = SystemLog(
             level=level,
@@ -78,7 +78,7 @@ def log_system_event(
         session.add(new_log)
         session.commit()
     except Exception as e:
+        session.rollback()
         py_logger.error(f"Failed to write to system_logs table: {e}")
     finally:
-        if not db:
-            session.close()
+        session.close()
