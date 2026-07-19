@@ -335,34 +335,9 @@ def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depe
     used = db.query(func.sum(DBFile.file_size)).filter(base_filter).scalar()
     file_count = db.query(func.count(DBFile.id)).filter(base_filter).scalar()
     
-    limit = 150 * 1024 * 1024  # Default 150MB for local
+    from core.storage import StorageManager
+    from core.security import decrypt_credentials
     
-    if target_id and target_id != "local":
-        from models import StorageTarget, ProviderTypeEnum
-        target = db.query(StorageTarget).filter(StorageTarget.id == target_id, StorageTarget.owner_id == current_user.id).first()
-        if target:
-            if target.provider_type == ProviderTypeEnum.AWS_S3:
-                limit = 5 * 1024 * 1024 * 1024
-            elif target.provider_type == ProviderTypeEnum.SUPABASE:
-                limit = 1 * 1024 * 1024 * 1024
-            elif target.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
-                limit = 15 * 1024 * 1024 * 1024
-            elif target.provider_type == ProviderTypeEnum.CLOUDINARY:
-                limit = 25 * 1024 * 1024 * 1024
-    elif not target_id:
-        # All Sources: sum of local + all configured targets
-        from models import StorageTarget, ProviderTypeEnum
-        targets = db.query(StorageTarget).filter(StorageTarget.owner_id == current_user.id).all()
-        for t in targets:
-            if t.provider_type == ProviderTypeEnum.AWS_S3:
-                limit += 5 * 1024 * 1024 * 1024
-            elif t.provider_type == ProviderTypeEnum.SUPABASE:
-                limit += 1 * 1024 * 1024 * 1024
-            elif t.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
-                limit += 15 * 1024 * 1024 * 1024
-            elif t.provider_type == ProviderTypeEnum.CLOUDINARY:
-                limit += 25 * 1024 * 1024 * 1024
-
     breakdown = []
     
     # 1. Local Storage
@@ -381,6 +356,7 @@ def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depe
 
     # 2. Configured Targets
     for t in all_targets:
+        # Default local tracker usage/limit if live fetch fails or is unsupported
         t_used = db.query(func.sum(DBFile.file_size)).filter(DBFile.owner_id == current_user.id, DBFile.deleted_at == None, DBFile.target_id == t.id).scalar() or 0
         t_limit = 0
         if t.provider_type == ProviderTypeEnum.AWS_S3: t_limit = 5 * 1024 * 1024 * 1024
@@ -388,8 +364,21 @@ def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depe
         elif t.provider_type == ProviderTypeEnum.GOOGLE_DRIVE: t_limit = 15 * 1024 * 1024 * 1024
         elif t.provider_type == ProviderTypeEnum.CLOUDINARY: t_limit = 25 * 1024 * 1024 * 1024
         
+        # Try live API fetch
+        try:
+            if t.encrypted_credentials:
+                creds = decrypt_credentials(t.encrypted_credentials)
+                manager = StorageManager(t.provider_type, creds)
+                live_stats = manager.get_storage_stats()
+                if live_stats:
+                    t_used = live_stats["used"]
+                    t_limit = live_stats["limit"]
+        except Exception:
+            pass
+
         configured_types.add(t.provider_type.name)
         breakdown.append({
+            "id": t.id,
             "provider_type": t.provider_type.name,
             "connection_name": t.connection_name,
             "used": t_used,
@@ -408,12 +397,23 @@ def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depe
     for p_type, name, p_limit in unconfigured_defaults:
         if p_type not in configured_types:
             breakdown.append({
+                "id": None,
                 "provider_type": p_type,
                 "connection_name": name,
                 "used": 0,
                 "limit": p_limit,
                 "is_configured": False
             })
+
+    # Recalculate totals based on live stats breakdown to keep it consistent
+    if target_id and target_id != "local":
+        target_stat = next((b for b in breakdown if b.get("id") == target_id), None)
+        if target_stat:
+            used = target_stat["used"]
+            limit = target_stat["limit"]
+    elif not target_id:
+        used = sum(b["used"] for b in breakdown if b["is_configured"])
+        limit = sum(b["limit"] for b in breakdown if b["is_configured"])
 
     return {"used": used or 0, "limit": limit, "file_count": file_count or 0, "breakdown": breakdown}
 

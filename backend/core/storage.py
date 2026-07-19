@@ -149,3 +149,45 @@ class StorageManager:
         # Cloudinary and Google Drive usually require storing the specific URL 
         # returned from the upload API. For now, we fallback to local proxy if needed.
         return ""
+
+    def get_storage_stats(self) -> dict:
+        """
+        Dynamically fetches the real storage usage and limit from the provider API.
+        Returns {"used": int, "limit": int} or None if the provider doesn't support it.
+        """
+        try:
+            if self.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
+                service_account_info = json.loads(self.credentials.get('service_account_json', '{}'))
+                creds = service_account.Credentials.from_service_account_info(
+                    service_account_info,
+                    scopes=['https://www.googleapis.com/auth/drive']
+                )
+                drive_service = build('drive', 'v3', credentials=creds)
+                about = drive_service.about().get(fields="storageQuota").execute()
+                quota = about.get('storageQuota', {})
+                return {
+                    "used": int(quota.get('usage', 0)),
+                    "limit": int(quota.get('limit', 0)) if quota.get('limit') else 15 * 1024 * 1024 * 1024
+                }
+                
+            elif self.provider_type == ProviderTypeEnum.CLOUDINARY:
+                cloudinary.config(
+                    cloud_name=self.credentials.get('cloud_name'),
+                    api_key=self.credentials.get('api_key'),
+                    api_secret=self.credentials.get('api_secret')
+                )
+                import cloudinary.api
+                usage = cloudinary.api.usage()
+                storage = usage.get('storage', {})
+                return {
+                    "used": int(storage.get('usage', 0)),
+                    "limit": int(storage.get('limit', 25 * 1024 * 1024 * 1024))
+                }
+                
+            # For S3 and Supabase, getting bucket size synchronously is not natively supported 
+            # by a simple API call (S3 requires CloudWatch or paginated list, Supabase requires Postgres RPC).
+            # We return None so the backend falls back to our local DB tracker.
+            return None
+        except Exception as e:
+            print(f"Failed to fetch live stats for {self.provider_type}: {e}")
+            return None
