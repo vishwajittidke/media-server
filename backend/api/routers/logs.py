@@ -5,7 +5,7 @@ from api.deps import get_db, get_current_user
 from models import User, SystemLog, RoleEnum
 from schemas.logs import SystemLogResponse
 
-router = APIRouter(prefix="/logs", tags=["logs"])
+router = APIRouter()
 
 @router.get("/", response_model=List[SystemLogResponse])
 def get_system_logs(
