@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from database import get_db
+from api.deps import get_db
 from models import User, SystemLog, RoleEnum
 from core.security import get_current_user
 from schemas.logs import SystemLogResponse
