@@ -243,6 +243,7 @@ async def upload_files(
                         import traceback
                         print(f"❌ Target upload failed for {original_name}: {e}")
                         traceback.print_exc()
+                        raise HTTPException(status_code=400, detail=f"Target storage upload failed: {str(e)}")
 
             # ── Parse date_taken ──────────────────────────────────────────
             parsed_date = None
