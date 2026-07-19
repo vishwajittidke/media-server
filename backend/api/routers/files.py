@@ -362,7 +362,59 @@ def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depe
             elif t.provider_type == ProviderTypeEnum.CLOUDINARY:
                 limit += 25 * 1024 * 1024 * 1024
 
-    return {"used": used or 0, "limit": limit, "file_count": file_count or 0}
+    breakdown = []
+    
+    # 1. Local Storage
+    local_used = db.query(func.sum(DBFile.file_size)).filter(DBFile.owner_id == current_user.id, DBFile.deleted_at == None, DBFile.target_id == None).scalar() or 0
+    breakdown.append({
+        "provider_type": "LOCAL",
+        "connection_name": "Local Storage",
+        "used": local_used,
+        "limit": 150 * 1024 * 1024,
+        "is_configured": True
+    })
+
+    from models import StorageTarget, ProviderTypeEnum
+    all_targets = db.query(StorageTarget).filter(StorageTarget.owner_id == current_user.id).all()
+    configured_types = set()
+
+    # 2. Configured Targets
+    for t in all_targets:
+        t_used = db.query(func.sum(DBFile.file_size)).filter(DBFile.owner_id == current_user.id, DBFile.deleted_at == None, DBFile.target_id == t.id).scalar() or 0
+        t_limit = 0
+        if t.provider_type == ProviderTypeEnum.AWS_S3: t_limit = 5 * 1024 * 1024 * 1024
+        elif t.provider_type == ProviderTypeEnum.SUPABASE: t_limit = 1 * 1024 * 1024 * 1024
+        elif t.provider_type == ProviderTypeEnum.GOOGLE_DRIVE: t_limit = 15 * 1024 * 1024 * 1024
+        elif t.provider_type == ProviderTypeEnum.CLOUDINARY: t_limit = 25 * 1024 * 1024 * 1024
+        
+        configured_types.add(t.provider_type.name)
+        breakdown.append({
+            "provider_type": t.provider_type.name,
+            "connection_name": t.connection_name,
+            "used": t_used,
+            "limit": t_limit,
+            "is_configured": True
+        })
+
+    # 3. Unconfigured Targets
+    unconfigured_defaults = [
+        ("AWS_S3", "AWS S3", 5 * 1024 * 1024 * 1024),
+        ("SUPABASE", "Supabase", 1 * 1024 * 1024 * 1024),
+        ("GOOGLE_DRIVE", "Google Drive", 15 * 1024 * 1024 * 1024),
+        ("CLOUDINARY", "Cloudinary", 25 * 1024 * 1024 * 1024)
+    ]
+    
+    for p_type, name, p_limit in unconfigured_defaults:
+        if p_type not in configured_types:
+            breakdown.append({
+                "provider_type": p_type,
+                "connection_name": name,
+                "used": 0,
+                "limit": p_limit,
+                "is_configured": False
+            })
+
+    return {"used": used or 0, "limit": limit, "file_count": file_count or 0, "breakdown": breakdown}
 
 @router.get("/admin/stats")
 def get_admin_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

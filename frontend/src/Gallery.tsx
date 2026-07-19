@@ -62,7 +62,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [storageData, setStorageData] = useState<{used: number, limit: number, file_count: number} | null>(null);
+  const [storageData, setStorageData] = useState<{used: number, limit: number, file_count: number, breakdown?: any[]} | null>(null);
   const [targets, setTargets] = useState<any[]>([]);
   const [activeTargetId, setActiveTargetId] = useState<string | null>(() => {
     const val = localStorage.getItem('active_target_id');
@@ -1482,6 +1482,44 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 <p className="text-[10px] text-white/50 font-medium mt-0.5">Can Upload</p>
               </div>
             </div>
+            
+            {storageData.breakdown && (!activeTargetId) && (
+              <div className="mb-6 max-h-48 overflow-y-auto hide-scrollbar space-y-2 pr-1">
+                <div className="text-[10px] uppercase text-white/40 font-bold tracking-wider mb-2">Platform Breakdown</div>
+                {storageData.breakdown.map((item, i) => {
+                  const itemUsedMB = item.used / (1024 * 1024);
+                  const itemLimitMB = item.limit / (1024 * 1024);
+                  const itemPct = Math.min(100, (item.used / item.limit) * 100);
+                  const itemBarColor = itemPct > 90 ? 'bg-red-500' : itemPct > 75 ? 'bg-yellow-400' : 'bg-blue-400';
+                  
+                  return (
+                    <div key={i} className={`p-3 rounded-xl border flex flex-col gap-2 transition-all ${item.is_configured ? 'bg-white/5 border-white/10' : 'bg-white/5 border-dashed border-white/20 opacity-50'}`}>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded flex items-center justify-center bg-black/20 shrink-0">
+                            {item.provider_type === 'LOCAL' && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>}
+                            {item.provider_type === 'SUPABASE' && <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                            {item.provider_type === 'AWS_S3' && <svg className="w-3 h-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>}
+                            {item.provider_type === 'CLOUDINARY' && <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                            {item.provider_type === 'GOOGLE_DRIVE' && <svg className="w-3 h-3 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+                          </span>
+                          <span className="text-sm font-bold text-white/90 truncate max-w-[120px]">{item.connection_name}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-white/70">
+                          {item.is_configured ? `${itemUsedMB.toFixed(1)} MB` : 'Not Configured'}
+                        </span>
+                      </div>
+                      
+                      {item.is_configured && (
+                        <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${itemBarColor}`} style={{ width: `${itemPct}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <button 
               onClick={() => setShowStorageModal(false)}
