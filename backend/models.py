@@ -22,6 +22,20 @@ class ProviderTypeEnum(enum.Enum):
     CLOUDINARY = "CLOUDINARY"
     SUPABASE = "SUPABASE"
 
+class LogLevelEnum(enum.Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+    SECURITY = "SECURITY"
+
+class LogCategoryEnum(enum.Enum):
+    UPLOAD = "UPLOAD"
+    AUTHENTICATION = "AUTHENTICATION"
+    DATABASE = "DATABASE"
+    EXTERNAL_API = "EXTERNAL_API"
+    SYSTEM = "SYSTEM"
+
 class User(Base):
     __tablename__ = "users"
 
@@ -117,4 +131,16 @@ class FileTag(Base):
 
     file_id = Column(String(36), ForeignKey("files.id"), primary_key=True)
     tag_id = Column(String(36), ForeignKey("tags.id"), primary_key=True)
+
+class SystemLog(Base):
+    __tablename__ = "system_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    level = Column(Enum(LogLevelEnum), default=LogLevelEnum.INFO, index=True)
+    category = Column(Enum(LogCategoryEnum), default=LogCategoryEnum.SYSTEM, index=True)
+    message = Column(String)
+    stack_trace = Column(String, nullable=True)
+    user_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
 

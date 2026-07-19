@@ -5,6 +5,7 @@ import exifr from 'exifr';
 import { motion, AnimatePresence } from 'framer-motion';
 import Tilt from 'react-parallax-tilt';
 import { TargetDestinations } from './TargetDestinations';
+import SystemLogs from './SystemLogs';
 
 interface FileItem {
   id: string;
@@ -48,6 +49,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showTargetsModal, setShowTargetsModal] = useState(false);
   const [showStorageModal, setShowStorageModal] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ old: '', new: '' });
   const [uploading, setUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -69,7 +71,22 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     return (val && val !== 'null') ? val : null;
   });
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+  const providerDropdownRef = useRef<HTMLDivElement>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (providerDropdownRef.current && !providerDropdownRef.current.contains(event.target as Node)) {
+        setShowProviderDropdown(false);
+      }
+    };
+    if (showProviderDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProviderDropdown]);
 
   useEffect(() => {
     // If targets have been fetched and activeTargetId doesn't exist in them, reset it
@@ -797,7 +814,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 
                 <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
                 
-                <div className="relative">
+                <div className="relative" ref={providerDropdownRef}>
                   <button 
                     onClick={() => setShowProviderDropdown(!showProviderDropdown)}
                     className="flex items-center justify-between min-w-[130px] bg-transparent hover:bg-white/5 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 px-3 transition-all cursor-pointer outline-none"
@@ -821,7 +838,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                   
                   {showProviderDropdown && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />
                       <div className="absolute top-full mt-2 right-0 w-64 bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 animate-fade-in-up">
                         <button
                           onClick={() => {
@@ -937,6 +953,14 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 title="Settings"
               >
                 <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              </button>
+              
+              <button 
+                onClick={() => setShowLogsModal(true)}
+                className="premium-btn !p-2 !bg-fuchsia-500/20 hover:!bg-fuchsia-500/30 border border-fuchsia-500/30"
+                title="System Logs"
+              >
+                <svg className="w-5 h-5 text-fuchsia-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
               </button>
             </div>
           </div>
@@ -1488,7 +1512,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 <div className="text-[10px] uppercase text-white/40 font-bold tracking-wider mb-2">Platform Breakdown</div>
                 {storageData.breakdown.map((item, i) => {
                   const itemUsedMB = item.used / (1024 * 1024);
-                  const itemLimitMB = item.limit / (1024 * 1024);
                   const itemPct = Math.min(100, (item.used / item.limit) * 100);
                   const itemBarColor = itemPct > 90 ? 'bg-red-500' : itemPct > 75 ? 'bg-yellow-400' : 'bg-blue-400';
                   
@@ -1547,6 +1570,9 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
           token={localStorage.getItem('token') || ''} 
           onClose={() => setShowTargetsModal(false)} 
         />
+      )}
+      {showLogsModal && (
+        <SystemLogs onClose={() => setShowLogsModal(false)} />
       )}
     </div>
   );

@@ -42,6 +42,13 @@ def _set_auth_cookie(response: JSONResponse, token: str) -> JSONResponse:
 def login_access_token(request: Request, db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password_hash):
+        from core.logger import log_system_event, LogLevelEnum, LogCategoryEnum
+        log_system_event(
+            level=LogLevelEnum.SECURITY,
+            category=LogCategoryEnum.AUTHENTICATION,
+            message=f"Failed login attempt for username: {form_data.username}",
+            db=db
+        )
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")

@@ -241,8 +241,17 @@ async def upload_files(
                         print(f"✅ Target upload OK: {original_name} -> {target.provider_type}")
                     except Exception as e:
                         import traceback
+                        from core.logger import log_system_event, LogLevelEnum, LogCategoryEnum
                         print(f"❌ Target upload failed for {original_name}: {e}")
                         traceback.print_exc()
+                        log_system_event(
+                            level=LogLevelEnum.ERROR,
+                            category=LogCategoryEnum.UPLOAD,
+                            message=f"Target storage upload failed for file '{original_name}' on target '{target.connection_name}': {str(e)}",
+                            user_id=current_user.id,
+                            exc_info=e,
+                            db=db
+                        )
                         raise HTTPException(status_code=400, detail=f"Target storage upload failed: {str(e)}")
 
             # ── Parse date_taken ──────────────────────────────────────────
