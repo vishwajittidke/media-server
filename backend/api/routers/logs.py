@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import String
 from typing import List, Optional
 from api.deps import get_db, get_current_user
 from models import User, SystemLog, RoleEnum
@@ -23,9 +24,9 @@ def get_system_logs(
     query = db.query(SystemLog)
     
     if level:
-        query = query.filter(SystemLog.level.ilike(level))
+        query = query.filter(SystemLog.level.cast(String).ilike(f"%{level}%"))
     if category:
-        query = query.filter(SystemLog.category.ilike(category))
+        query = query.filter(SystemLog.category.cast(String).ilike(f"%{category}%"))
         
     # Order by newest first
     logs = query.order_by(SystemLog.created_at.desc()).offset(skip).limit(limit).all()
