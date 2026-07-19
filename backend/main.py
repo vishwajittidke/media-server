@@ -1,6 +1,8 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, HTTPException, BackgroundTasks, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 import os
 
 from slowapi import _rate_limit_exceeded_handler
@@ -9,9 +11,10 @@ from slowapi.middleware import SlowAPIMiddleware
 from core.limiter import limiter
 
 from database import engine
-from models import Base
+from models import Base, LogLevelEnum, LogCategoryEnum
 from api.routers import auth, files, ws, folders, targets, logs
 from core.config import settings
+from core.logger import log_system_event
 from sqlalchemy import text
 
 # ── Ensure storage directories exist ─────────────────────────────────────────
@@ -103,6 +106,42 @@ async def security_headers_middleware(request: Request, call_next):
     # Basic CSP - restrict everything to self, allow images from any domain since they come from supabase/cdn
     response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline';"
     return response
+
+@app.middleware("http")
+async def error_logging_middleware(request: Request, call_next):
+    try:
+        response = await call_next(request)
+        if response.status_code >= 500:
+            log_system_event(
+                level=LogLevelEnum.ERROR,
+                category=LogCategoryEnum.SYSTEM,
+                message=f"Server error {response.status_code} on {request.method} {request.url.path}"
+            )
+        elif response.status_code in [401, 403]:
+            # Log auth/security failures without spamming too much
+            pass
+        return response
+    except Exception as exc:
+        log_system_event(
+            level=LogLevelEnum.CRITICAL,
+            category=LogCategoryEnum.SYSTEM,
+            message=f"Unhandled exception during {request.method} {request.url.path}: {str(exc)}",
+            exc_info=exc
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"}
+        )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code >= 500:
+        log_system_event(
+            level=LogLevelEnum.ERROR,
+            category=LogCategoryEnum.SYSTEM,
+            message=f"HTTPException {exc.status_code} on {request.method} {request.url.path}: {exc.detail}"
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 app.add_middleware(
     CORSMiddleware,
