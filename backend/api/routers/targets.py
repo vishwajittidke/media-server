@@ -53,7 +53,18 @@ def update_target(target_id: str, target: StorageTargetUpdate, db: Session = Dep
     if target.is_active is not None:
         db_target.is_active = target.is_active
     if target.credentials is not None:
-        db_target.encrypted_credentials = encrypt_credentials(target.credentials)
+        # Fetch old credentials to merge with
+        from core.security import decrypt_credentials, encrypt_credentials
+        old_creds = {}
+        if db_target.encrypted_credentials:
+            old_creds = decrypt_credentials(db_target.encrypted_credentials)
+            
+        # Merge new creds into old creds (only overwrite if new value is not empty)
+        for k, v in target.credentials.items():
+            if v and str(v).strip() != "":
+                old_creds[k] = v
+                
+        db_target.encrypted_credentials = encrypt_credentials(old_creds)
 
     db.commit()
     db.refresh(db_target)
