@@ -356,26 +356,67 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
                     {formData.provider_type === 'GOOGLE_DRIVE' && (
                       <div className="space-y-4">
                         <div className="text-white/60 p-4 border border-blue-500/30 bg-blue-500/5 rounded-xl text-sm">
-                          Google Drive integration will use OAuth2 service account credentials. Please paste your entire JSON key file contents below.
+                          To bypass Google's Service Account storage quota, you can authenticate as a real user using OAuth2 tokens. Alternatively, provide a Service Account JSON for Workspace Shared Drives.
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-white/70 mb-2">OAuth2 Refresh Token</label>
+                          <input 
+                            type="password"
+                            value={formData.credentials?.refresh_token || ''}
+                            onChange={e => setFormData({...formData, credentials: {...formData.credentials, refresh_token: e.target.value}})}
+                            className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder={editingTarget?.id ? "(Stored Securely - Leave blank to keep)" : "1//0g..."}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-white/70 mb-2">OAuth2 Client ID</label>
+                            <input 
+                              type="password"
+                              value={formData.credentials?.client_id || ''}
+                              onChange={e => setFormData({...formData, credentials: {...formData.credentials, client_id: e.target.value}})}
+                              className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                              placeholder={editingTarget?.id ? "(Stored Securely - Leave blank to keep)" : "your-client-id.apps.googleusercontent.com"}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-white/70 mb-2">OAuth2 Client Secret</label>
+                            <input 
+                              type="password"
+                              value={formData.credentials?.client_secret || ''}
+                              onChange={e => setFormData({...formData, credentials: {...formData.credentials, client_secret: e.target.value}})}
+                              className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                              placeholder={editingTarget?.id ? "(Stored Securely - Leave blank to keep)" : "GOCSPX-..."}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="my-4 flex items-center gap-4">
+                          <div className="h-px bg-white/10 flex-1"></div>
+                          <span className="text-white/40 text-sm font-medium">OR (For Workspace Shared Drives)</span>
+                          <div className="h-px bg-white/10 flex-1"></div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-white/70 mb-2">Service Account JSON</label>
                           <textarea 
-                            required={!editingTarget?.id}
                             value={formData.credentials?.service_account_json || ''}
                             onChange={e => setFormData({...formData, credentials: {...formData.credentials, service_account_json: e.target.value}})}
-                            className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 mt-4 text-white font-mono text-xs h-32 focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xs h-32 focus:ring-2 focus:ring-blue-500 outline-none"
                             placeholder={editingTarget?.id ? "(Stored Securely - Leave blank to keep)" : '{"type": "service_account", ...}'}
                           />
                         </div>
+
                         <div>
-                          <label className="block text-sm font-medium text-white/70 mb-2">Folder ID (Required for Service Accounts) *</label>
+                          <label className="block text-sm font-medium text-white/70 mb-2">Folder ID / Shared Drive ID</label>
                           <input 
-                            type="text" 
-                            required={!editingTarget?.id}
                             value={formData.credentials?.folder_id || ''}
                             onChange={e => setFormData({...formData, credentials: {...formData.credentials, folder_id: e.target.value}})}
                             className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="e.g. 1FGb16RCt7tdDndShvrTeszSbCzSCdUUe"
+                            placeholder="1FGB16RCr7..."
                           />
-                          <p className="text-xs text-white/40 mt-2">Paste the ID of the folder you shared with your Service Account email.</p>
                         </div>
                       </div>
                     )}
