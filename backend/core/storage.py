@@ -76,6 +76,10 @@ class StorageManager:
             drive_service = build('drive', 'v3', credentials=creds)
             
             file_metadata = {'name': object_path.split('/')[-1]}
+            folder_id = self.credentials.get('folder_id')
+            if folder_id:
+                file_metadata['parents'] = [folder_id]
+                
             media = MediaIoBaseUpload(io.BytesIO(data), mimetype=content_type, resumable=True)
             
             file = drive_service.files().create(
