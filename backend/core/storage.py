@@ -167,7 +167,7 @@ class StorageManager:
                 quota = about.get('storageQuota', {})
                 return {
                     "used": int(quota.get('usage', 0)),
-                    "limit": int(quota.get('limit', 0)) if quota.get('limit') else 15 * 1024 * 1024 * 1024
+                    "limit": int(quota.get('limit', 0)) if int(quota.get('limit', 0)) > 0 else 15 * 1024 * 1024 * 1024
                 }
                 
             elif self.provider_type == ProviderTypeEnum.CLOUDINARY:
