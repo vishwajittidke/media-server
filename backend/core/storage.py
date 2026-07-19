@@ -5,7 +5,7 @@ import cloudinary.uploader
 import requests
 import io
 import json
-from google.oauth2 import service_account
+from google.oauth2 import service_account, credentials as google_credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -68,11 +68,23 @@ class StorageManager:
             return f"{supabase_url}/storage/v1/object/public/{bucket}/{object_path}"
             
         elif self.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
-            service_account_info = json.loads(self.credentials.get('service_account_json', '{}'))
-            creds = service_account.Credentials.from_service_account_info(
-                service_account_info,
-                scopes=['https://www.googleapis.com/auth/drive']
-            )
+            # Try OAuth2 Refresh Token first (avoids quota issues)
+            if self.credentials.get('refresh_token'):
+                creds = google_credentials.Credentials(
+                    token=None,
+                    refresh_token=self.credentials.get('refresh_token'),
+                    client_id=self.credentials.get('client_id'),
+                    client_secret=self.credentials.get('client_secret'),
+                    token_uri='https://oauth2.googleapis.com/token',
+                    scopes=['https://www.googleapis.com/auth/drive']
+                )
+            else:
+                # Fallback to Service Account (requires Workspace Shared Drive to avoid quota error)
+                service_account_info = json.loads(self.credentials.get('service_account_json', '{}'))
+                creds = service_account.Credentials.from_service_account_info(
+                    service_account_info,
+                    scopes=['https://www.googleapis.com/auth/drive']
+                )
             drive_service = build('drive', 'v3', credentials=creds)
             
             file_metadata = {'name': object_path.split('/')[-1]}
@@ -161,11 +173,21 @@ class StorageManager:
         """
         try:
             if self.provider_type == ProviderTypeEnum.GOOGLE_DRIVE:
-                service_account_info = json.loads(self.credentials.get('service_account_json', '{}'))
-                creds = service_account.Credentials.from_service_account_info(
-                    service_account_info,
-                    scopes=['https://www.googleapis.com/auth/drive']
-                )
+                if self.credentials.get('refresh_token'):
+                    creds = google_credentials.Credentials(
+                        token=None,
+                        refresh_token=self.credentials.get('refresh_token'),
+                        client_id=self.credentials.get('client_id'),
+                        client_secret=self.credentials.get('client_secret'),
+                        token_uri='https://oauth2.googleapis.com/token',
+                        scopes=['https://www.googleapis.com/auth/drive']
+                    )
+                else:
+                    service_account_info = json.loads(self.credentials.get('service_account_json', '{}'))
+                    creds = service_account.Credentials.from_service_account_info(
+                        service_account_info,
+                        scopes=['https://www.googleapis.com/auth/drive']
+                    )
                 drive_service = build('drive', 'v3', credentials=creds)
                 about = drive_service.about().get(fields="storageQuota").execute()
                 quota = about.get('storageQuota', {})
