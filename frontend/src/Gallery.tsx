@@ -65,10 +65,23 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const [storageData, setStorageData] = useState<{used: number, limit: number, file_count: number} | null>(null);
   const [targets, setTargets] = useState<any[]>([]);
   const [activeTargetId, setActiveTargetId] = useState<string | null>(() => {
-    return localStorage.getItem('active_target_id') || null;
+    const val = localStorage.getItem('active_target_id');
+    return (val && val !== 'null') ? val : null;
   });
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // If targets have been fetched and activeTargetId doesn't exist in them, reset it
+    // This fixes the bug where a deleted target ID remains in localStorage, causing 0 files to fetch.
+    if (targets.length > 0 && activeTargetId && activeTargetId !== 'null') {
+      const exists = targets.find(t => t.id === activeTargetId);
+      if (!exists) {
+        setActiveTargetId(null);
+        localStorage.removeItem('active_target_id');
+      }
+    }
+  }, [targets, activeTargetId]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -110,7 +123,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
         }
       }
 
-      if (activeTargetId) {
+      if (activeTargetId && activeTargetId !== 'null') {
         url += `&target_id=${activeTargetId}`;
       }
 
@@ -164,9 +177,9 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       if (res.ok) {
         const data = await res.json();
         setTargets(data);
-        if (data.length > 0 && (!activeTargetId || !data.find((t: any) => t.id === activeTargetId))) {
-          setActiveTargetId(data[0].id);
-          localStorage.setItem('active_target_id', data[0].id);
+        if (data.length > 0 && activeTargetId && activeTargetId !== 'null' && !data.find((t: any) => t.id === activeTargetId)) {
+          setActiveTargetId(null);
+          localStorage.removeItem('active_target_id');
         }
       }
     } catch (e) {
@@ -800,7 +813,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                           <span className="truncate">{targets.find(t => t.id === activeTargetId)?.connection_name}</span>
                         </>
                       ) : (
-                        <span className="text-white/50">No Target</span>
+                        <span className="text-white/50">All Sources</span>
                       )}
                     </span>
                     <svg className={`w-4 h-4 ml-2 text-white/50 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
@@ -810,6 +823,27 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />
                       <div className="absolute top-full mt-2 right-0 w-64 bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 animate-fade-in-up">
+                        <button
+                          onClick={() => {
+                            setActiveTargetId(null);
+                            localStorage.removeItem('active_target_id');
+                            setShowProviderDropdown(false);
+                          }}
+                          className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${!activeTargetId ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white font-medium'}`}
+                        >
+                          <span className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                          </span>
+                          <span className="flex-1 truncate">All Sources</span>
+                          {!activeTargetId && (
+                            <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                        
+                        {targets.length > 0 && <div className="h-px bg-white/10 my-1.5" />}
+                        
                         {targets.length === 0 ? (
                           <div className="p-3 text-sm text-white/50 text-center">No targets configured</div>
                         ) : (
