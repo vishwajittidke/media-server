@@ -105,76 +105,91 @@ def sync_target_task(target_id: str, owner_id: str):
         # We need to filter out files that are already in the database
         # For simplicity, we check if the storage_path (URL) already exists, or original_name if ID is used
         for remote_file in remote_files:
-            # Check by original_name (which is often the ID/Key for remote systems)
-            existing = db.query(DBFile).filter(
-                DBFile.owner_id == owner_id,
-                DBFile.target_id == target_id,
-                DBFile.original_name == remote_file['name']
-            ).first()
-            
-            if existing:
-                continue
-                
-            # Download file to generate thumbnail
-            raw_bytes = manager.download_file(remote_file['id'])
-            if not raw_bytes:
-                continue
-                
-            # Generate SHA256
-            sha256 = hashlib.sha256(raw_bytes).hexdigest()
-            mime_type = remote_file.get('mime_type') or mimetypes.guess_type(remote_file['name'])[0] or "application/octet-stream"
-            stored_name = f"{sha256}.{remote_file['name'].split('.')[-1]}" if '.' in remote_file['name'] else f"{sha256}.jpeg"
-            
-            # Generate thumbnail
-            thumb_bytes = None
-            preview_bytes = None
-            if mime_type.startswith("image/"):
-                try:
-                    with Image.open(io.BytesIO(raw_bytes)) as img:
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
+            try:
+                # If name looks like a hash (from Media Server uploads), check by sha256
+                assumed_hash = remote_file['name'].split('.')[0]
+                if len(assumed_hash) == 64:
+                    existing = db.query(DBFile).filter(
+                        DBFile.owner_id == owner_id,
+                        DBFile.sha256 == assumed_hash
+                    ).first()
+                    if existing:
+                        continue
+                else:
+                    existing = db.query(DBFile).filter(
+                        DBFile.owner_id == owner_id,
+                        DBFile.target_id == target_id,
+                        DBFile.original_name == remote_file['name']
+                    ).first()
+                    if existing:
+                        continue
                         
-                        thumb = img.copy()
-                        thumb.thumbnail((600, 600))
-                        t_io = io.BytesIO()
-                        thumb.save(t_io, format="JPEG", quality=75)
-                        thumb_bytes = t_io.getvalue()
-                        
-                        prev = img.copy()
-                        prev.thumbnail((1920, 1080))
-                        p_io = io.BytesIO()
-                        prev.save(p_io, format="JPEG", quality=85)
-                        preview_bytes = p_io.getvalue()
-                except Exception as e:
-                    print(f"Thumbnail generation error during sync: {e}")
-            
-            # If thumbnail generation failed, skip or save without?
-            # Let's save it anyway so it shows up in UI (might be broken icon but at least it's synced)
-            thumbnail_path = f"/api/v1/files/thumb/{stored_name}"
-            preview_path = f"/api/v1/files/preview/{stored_name}"
-            
-            # Register in database
-            db_file = DBFile(
-                owner_id=owner_id,
-                original_name=remote_file['name'],
-                stored_name=stored_name,
-                mime_type=mime_type,
-                size=len(raw_bytes),
-                sha256=sha256,
-                target_id=target_id,
-                storage_path=remote_file['url'],
-                thumbnail_path=thumbnail_path,
-                preview_path=preview_path,
-            )
-            db.add(db_file)
-            db.flush()
-            
-            if thumb_bytes:
-                db.add(FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes))
-            if preview_bytes:
-                db.add(FileData(file_id=db_file.id, kind="preview", data=preview_bytes))
+                # Download file to generate thumbnail
+                raw_bytes = manager.download_file(remote_file['id'])
+                if not raw_bytes:
+                    continue
+                    
+                # Generate SHA256
+                sha256 = hashlib.sha256(raw_bytes).hexdigest()
                 
-            db.commit()
+                # Check again by sha256 to prevent IntegrityError on unique constraint
+                existing_by_hash = db.query(DBFile).filter(DBFile.owner_id == owner_id, DBFile.sha256 == sha256).first()
+                if existing_by_hash:
+                    continue
+                    
+                mime_type = remote_file.get('mime_type') or mimetypes.guess_type(remote_file['name'])[0] or "application/octet-stream"
+                stored_name = f"{sha256}.{remote_file['name'].split('.')[-1]}" if '.' in remote_file['name'] else f"{sha256}.jpeg"
+                
+                # Generate thumbnail
+                thumb_bytes = None
+                preview_bytes = None
+                if mime_type.startswith("image/"):
+                    try:
+                        with Image.open(io.BytesIO(raw_bytes)) as img:
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                            
+                            thumb = img.copy()
+                            thumb.thumbnail((600, 600))
+                            t_io = io.BytesIO()
+                            thumb.save(t_io, format="JPEG", quality=75)
+                            thumb_bytes = t_io.getvalue()
+                            
+                            prev = img.copy()
+                            prev.thumbnail((1920, 1080))
+                            p_io = io.BytesIO()
+                            prev.save(p_io, format="JPEG", quality=85)
+                            preview_bytes = p_io.getvalue()
+                    except Exception as e:
+                        print(f"Thumbnail generation error during sync: {e}")
+                
+                thumbnail_path = f"/api/v1/files/thumb/{stored_name}"
+                preview_path = f"/api/v1/files/preview/{stored_name}"
+                
+                db_file = DBFile(
+                    owner_id=owner_id,
+                    original_name=remote_file['name'],
+                    stored_name=stored_name,
+                    mime_type=mime_type,
+                    size=len(raw_bytes),
+                    sha256=sha256,
+                    target_id=target_id,
+                    storage_path=remote_file['url'],
+                    thumbnail_path=thumbnail_path,
+                    preview_path=preview_path,
+                )
+                db.add(db_file)
+                db.flush()
+                
+                if thumb_bytes:
+                    db.add(FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes))
+                if preview_bytes:
+                    db.add(FileData(file_id=db_file.id, kind="preview", data=preview_bytes))
+                    
+                db.commit()
+            except Exception as loop_e:
+                db.rollback()
+                print(f"Error syncing file {remote_file.get('name')}: {loop_e}")
             
     except Exception as e:
         print(f"Sync target task failed: {e}")
