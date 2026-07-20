@@ -248,18 +248,26 @@ class StorageManager:
                 if folder_id:
                     q += f" and '{folder_id}' in parents"
                     
-                results = drive_service.files().list(
-                    q=q,
-                    fields="files(id, name, mimeType, webViewLink, webContentLink)"
-                ).execute()
-                
-                for item in results.get('files', []):
-                    files.append({
-                        'id': item.get('id'),
-                        'name': item.get('name'),
-                        'url': item.get('webViewLink'),
-                        'mime_type': item.get('mimeType')
-                    })
+                page_token = None
+                while True:
+                    results = drive_service.files().list(
+                        q=q,
+                        pageSize=1000,
+                        fields="nextPageToken, files(id, name, mimeType, webViewLink, webContentLink)",
+                        pageToken=page_token
+                    ).execute()
+                    
+                    for item in results.get('files', []):
+                        files.append({
+                            'id': item.get('id'),
+                            'name': item.get('name'),
+                            'url': item.get('webViewLink'),
+                            'mime_type': item.get('mimeType')
+                        })
+                    
+                    page_token = results.get('nextPageToken')
+                    if not page_token:
+                        break
                     
             elif self.provider_type == ProviderTypeEnum.AWS_S3:
                 s3 = boto3.client(
