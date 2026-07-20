@@ -3,10 +3,11 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from database import engine, SessionLocal
-from models import User, StorageTarget, ProviderTypeEnum
+from models import User, StorageTarget, ProviderTypeEnum, LogLevelEnum, LogCategoryEnum
 from api.routers.auth import get_current_user
 from schemas.targets import StorageTargetCreate, StorageTargetUpdate, StorageTargetResponse
 from core.security import encrypt_credentials
+from core.logger import log_system_event
 
 router = APIRouter(
     prefix="/api/v1/targets",
@@ -189,10 +190,11 @@ def sync_target_task(target_id: str, owner_id: str):
                 db.commit()
             except Exception as loop_e:
                 db.rollback()
-                print(f"Error syncing file {remote_file.get('name')}: {loop_e}")
-            
+                log_system_event(LogLevelEnum.ERROR, LogCategoryEnum.SYNC, f"Error syncing file {remote_file.get('name')}: {loop_e}", user_id=owner_id, db=db)
+                
     except Exception as e:
-        print(f"Sync target task failed: {e}")
+        import traceback
+        log_system_event(LogLevelEnum.ERROR, LogCategoryEnum.SYNC, f"Sync target task failed: {e}\n{traceback.format_exc()}", user_id=owner_id, db=db)
     finally:
         db.close()
 
