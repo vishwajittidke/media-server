@@ -95,7 +95,7 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const res = await fetch(`${apiUrl}/targets/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include'
       });
       if (res.ok) {
         await fetchTargets();
@@ -111,7 +111,7 @@ export function TargetDestinations({ onClose, token }: TargetDestinationsProps) 
       const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
       const res = await fetch(`${apiUrl}/targets/${id}/sync`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include'
       });
       if (res.ok) {
         alert("Sync started in the background! Please check the system logs in a few minutes to see the progress.");
