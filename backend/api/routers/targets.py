@@ -81,6 +81,72 @@ def delete_target(target_id: str, db: Session = Depends(get_db), current_user: U
     db.commit()
     return {"message": "Target deleted successfully"}
 
+@router.get("/{target_id}/debug_sync")
+def debug_sync(target_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_target = db.query(StorageTarget).filter(StorageTarget.id == target_id, StorageTarget.owner_id == current_user.id).first()
+    if not db_target: return {"error": "Target not found"}
+    logs = []
+    try:
+        credentials = decrypt_credentials(db_target.encrypted_credentials)
+        manager = StorageManager(provider_type=db_target.provider_type, credentials=credentials)
+        logs.append("Storage manager initialized")
+        remote_files = manager.list_files()
+        logs.append(f"Found {len(remote_files)} remote files")
+        
+        for remote_file in remote_files:
+            file_name = remote_file.get('name', 'unknown')
+            try:
+                assumed_hash = file_name.split('.')[0]
+                if len(assumed_hash) == 64:
+                    existing = db.query(DBFile).filter(DBFile.owner_id == current_user.id, DBFile.sha256 == assumed_hash).first()
+                    if existing:
+                        logs.append(f"Skipping {file_name}: hash already exists")
+                        continue
+                else:
+                    existing = db.query(DBFile).filter(DBFile.owner_id == current_user.id, DBFile.target_id == target_id, DBFile.original_name == file_name).first()
+                    if existing:
+                        logs.append(f"Skipping {file_name}: name already exists in target")
+                        continue
+                        
+                raw_bytes = manager.download_file(remote_file['id'])
+                if not raw_bytes:
+                    logs.append(f"Failed to download {file_name}")
+                    continue
+                    
+                sha256 = hashlib.sha256(raw_bytes).hexdigest()
+                existing_by_hash = db.query(DBFile).filter(DBFile.owner_id == current_user.id, DBFile.sha256 == sha256).first()
+                if existing_by_hash:
+                    logs.append(f"Skipping {file_name}: downloaded, but hash {sha256} already exists in DB")
+                    continue
+                    
+                logs.append(f"Would sync {file_name} with size {len(raw_bytes)} (Hash: {sha256})")
+                
+                db_file = DBFile(
+                    owner_id=current_user.id,
+                    original_name=file_name,
+                    stored_name=f"{sha256}.{file_name.split('.')[-1]}" if '.' in file_name else f"{sha256}.jpeg",
+                    mime_type="image/jpeg",
+                    size=len(raw_bytes),
+                    sha256=sha256,
+                    target_id=target_id,
+                    storage_path=remote_file['url']
+                )
+                db.add(db_file)
+                db.flush()
+                logs.append(f"Successfully flushed DB entry for {file_name}")
+                db.commit()
+                
+            except Exception as e:
+                db.rollback()
+                logs.append(f"Error processing {file_name}: {str(e)}")
+                
+    except Exception as e:
+        import traceback
+        logs.append(f"Fatal error: {str(e)}\n{traceback.format_exc()}")
+        
+    return {"logs": logs}
+
+
 from fastapi import BackgroundTasks
 import hashlib
 from PIL import Image
