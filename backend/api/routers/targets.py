@@ -107,6 +107,21 @@ def count_files(db: Session = Depends(get_db)):
     count = db.query(DBFile).count()
     return {"count": count}
 
+@router.get("/raw_db_files")
+def raw_db_files(db: Session = Depends(get_db)):
+    from models import File as DBFile
+    files = db.query(DBFile).all()
+    res = []
+    for f in files:
+        res.append({
+            "id": f.id,
+            "target_id": f.target_id,
+            "sha256": f.sha256,
+            "folder_id": f.folder_id,
+            "deleted_at": str(f.deleted_at) if f.deleted_at else None
+        })
+    return res
+
 @router.get("/{target_id}/debug_sync")
 def debug_sync(target_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_target = db.query(StorageTarget).filter(StorageTarget.id == target_id, StorageTarget.owner_id == current_user.id).first()
