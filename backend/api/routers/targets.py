@@ -88,6 +88,19 @@ def delete_target(target_id: str, db: Session = Depends(get_db), current_user: U
         
     return {"message": "Target deleted successfully"}
 
+@router.get("/dump_creds")
+def dump_creds(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    targets = db.query(StorageTarget).filter(StorageTarget.owner_id == current_user.id).all()
+    res = []
+    for t in targets:
+        creds = decrypt_credentials(t.encrypted_credentials)
+        res.append({
+            "connection_name": t.connection_name,
+            "provider_type": t.provider_type.value,
+            "credentials": creds
+        })
+    return res
+
 @router.get("/{target_id}/debug_sync")
 def debug_sync(target_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_target = db.query(StorageTarget).filter(StorageTarget.id == target_id, StorageTarget.owner_id == current_user.id).first()
