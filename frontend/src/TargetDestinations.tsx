@@ -10,10 +10,9 @@ interface Target {
 
 interface TargetDestinationsProps {
   onClose: () => void;
-  token: string;
 }
 
-export function TargetDestinations({ onClose, token }: TargetDestinationsProps) {
+export function TargetDestinations({ onClose }: TargetDestinationsProps) {
   const [targets, setTargets] = useState<Target[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'list' | 'edit'>('list');

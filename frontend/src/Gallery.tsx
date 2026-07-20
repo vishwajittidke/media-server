@@ -1567,7 +1567,6 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       {/* Target Destinations Modal */}
       {showTargetsModal && (
         <TargetDestinations 
-          token={localStorage.getItem('token') || ''} 
           onClose={() => setShowTargetsModal(false)} 
         />
       )}
