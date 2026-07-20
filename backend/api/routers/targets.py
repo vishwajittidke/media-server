@@ -216,19 +216,26 @@ def sync_target_task(target_id: str, owner_id: str):
                             if img.mode in ("RGBA", "P"):
                                 img = img.convert("RGB")
                             
-                            thumb = img.copy()
-                            thumb.thumbnail((600, 600))
-                            t_io = io.BytesIO()
-                            thumb.save(t_io, format="JPEG", quality=75)
-                            thumb_bytes = t_io.getvalue()
-                            
-                            prev = img.copy()
-                            prev.thumbnail((1920, 1080))
+                            # Do NOT use img.copy() which doubles memory!
+                            # First, resize to preview size (1920x1080)
+                            img.thumbnail((1920, 1080))
                             p_io = io.BytesIO()
-                            prev.save(p_io, format="JPEG", quality=85)
+                            img.save(p_io, format="JPEG", quality=85)
                             preview_bytes = p_io.getvalue()
+                            del p_io
+                            
+                            # Then, resize the ALREADY resized preview down to thumbnail size (600x600)
+                            img.thumbnail((600, 600))
+                            t_io = io.BytesIO()
+                            img.save(t_io, format="JPEG", quality=75)
+                            thumb_bytes = t_io.getvalue()
+                            del t_io
+                            
                     except Exception as e:
                         print(f"Thumbnail generation error during sync: {e}")
+                        
+                # Free memory of raw_bytes now that we are done with it
+                del raw_bytes
                 
                 thumbnail_path = f"/api/v1/files/thumb/{stored_name}"
                 preview_path = f"/api/v1/files/preview/{stored_name}"
@@ -257,6 +264,9 @@ def sync_target_task(target_id: str, owner_id: str):
             except Exception as loop_e:
                 db.rollback()
                 log_system_event(LogLevelEnum.ERROR, LogCategoryEnum.SYNC, f"Error syncing file {remote_file.get('name')}: {loop_e}", user_id=owner_id, db=db)
+            finally:
+                import gc
+                gc.collect()
                 
     except Exception as e:
         import traceback
