@@ -89,7 +89,7 @@ def debug_sync(target_id: str, db: Session = Depends(get_db), current_user: User
     try:
         credentials = decrypt_credentials(db_target.encrypted_credentials)
         manager = StorageManager(provider_type=db_target.provider_type, credentials=credentials)
-        logs.append("Storage manager initialized")
+        logs.append(f"Storage manager initialized. Has SA JSON: {bool(credentials.get('service_account_json'))}. Has Refresh Token: {bool(credentials.get('refresh_token'))}.")
         remote_files = manager.list_files()
         logs.append(f"Found {len(remote_files)} remote files")
         
