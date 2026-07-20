@@ -77,8 +77,15 @@ def delete_target(target_id: str, db: Session = Depends(get_db), current_user: U
     if not db_target:
         raise HTTPException(status_code=404, detail="Target not found")
         
-    db.delete(db_target)
-    db.commit()
+    try:
+        from models import File as DBFile
+        db.query(DBFile).filter(DBFile.target_id == db_target.id).delete(synchronize_session=False)
+        db.delete(db_target)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+        
     return {"message": "Target deleted successfully"}
 
 @router.get("/{target_id}/debug_sync")
