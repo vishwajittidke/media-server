@@ -260,6 +260,8 @@ def sync_target_task(target_id: str, owner_id: str):
                     except Exception as e:
                         print(f"Thumbnail generation error during sync: {e}")
                         
+                file_size = len(raw_bytes)
+                
                 # Free memory of raw_bytes now that we are done with it
                 del raw_bytes
                 
@@ -271,7 +273,7 @@ def sync_target_task(target_id: str, owner_id: str):
                     original_name=remote_file['name'],
                     stored_name=stored_name,
                     mime_type=mime_type,
-                    size=len(raw_bytes),
+                    size=file_size,
                     sha256=sha256,
                     target_id=target_id,
                     storage_path=remote_file['url'],
