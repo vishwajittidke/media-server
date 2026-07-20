@@ -230,6 +230,10 @@ def sync_target_task(target_id: str, owner_id: str):
                         DBFile.sha256 == assumed_hash
                     ).first()
                     if existing:
+                        if existing.target_id != target_id or existing.deleted_at is not None:
+                            existing.target_id = target_id
+                            existing.deleted_at = None
+                            db.commit()
                         continue
                 else:
                     existing = db.query(DBFile).filter(
@@ -251,6 +255,10 @@ def sync_target_task(target_id: str, owner_id: str):
                 # Check again by sha256 to prevent IntegrityError on unique constraint
                 existing_by_hash = db.query(DBFile).filter(DBFile.owner_id == owner_id, DBFile.sha256 == sha256).first()
                 if existing_by_hash:
+                    if existing_by_hash.target_id != target_id or existing_by_hash.deleted_at is not None:
+                        existing_by_hash.target_id = target_id
+                        existing_by_hash.deleted_at = None
+                        db.commit()
                     continue
                     
                 mime_type = remote_file.get('mime_type') or mimetypes.guess_type(remote_file['name'])[0] or "application/octet-stream"
