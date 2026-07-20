@@ -104,15 +104,16 @@ def dump_creds(db: Session = Depends(get_db), current_user: User = Depends(get_c
 @router.get("/count_files")
 def count_files(db: Session = Depends(get_db)):
     from models import File as DBFile
-    files = db.query(DBFile).filter(DBFile.target_id.isnot(None)).all()
-    deleted = 0
-    for f in files:
-        if f.target_id != "280c0fc0-4747-4596-8612-e4118a370f2a":
-            db.delete(f)
-            deleted += 1
-    db.commit()
-    count = db.query(DBFile).count()
-    return {"count": count, "deleted_ghosts": deleted}
+    files = db.query(DBFile).all()
+    if not files: return {"count": 0}
+    f = files[0]
+    return {
+        "count": len(files),
+        "target_id": f.target_id,
+        "folder_id": f.folder_id,
+        "deleted_at": str(f.deleted_at) if f.deleted_at else None,
+        "owner_id": f.owner_id
+    }
 
 @router.get("/raw_db_files")
 def raw_db_files(db: Session = Depends(get_db)):
