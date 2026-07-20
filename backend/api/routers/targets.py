@@ -101,6 +101,12 @@ def dump_creds(db: Session = Depends(get_db), current_user: User = Depends(get_c
         })
     return res
 
+@router.get("/count_files")
+def count_files(db: Session = Depends(get_db)):
+    from models import File as DBFile
+    count = db.query(DBFile).count()
+    return {"count": count}
+
 @router.get("/{target_id}/debug_sync")
 def debug_sync(target_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_target = db.query(StorageTarget).filter(StorageTarget.id == target_id, StorageTarget.owner_id == current_user.id).first()
