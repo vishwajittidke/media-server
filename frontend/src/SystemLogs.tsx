@@ -26,7 +26,7 @@ export default function SystemLogs({ onClose }: { onClose: () => void }) {
 
     try {
       const res = await fetch(query, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
