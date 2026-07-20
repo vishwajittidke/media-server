@@ -175,7 +175,7 @@ def debug_sync(target_id: str, db: Session = Depends(get_db), current_user: User
                     original_name=file_name,
                     stored_name=f"{sha256}.{file_name.split('.')[-1]}" if '.' in file_name else f"{sha256}.jpeg",
                     mime_type="image/jpeg",
-                    size=len(raw_bytes),
+                    file_size=len(raw_bytes),
                     sha256=sha256,
                     target_id=target_id,
                     storage_path=remote_file['url']
@@ -304,7 +304,7 @@ def sync_target_task(target_id: str, owner_id: str):
                     original_name=remote_file['name'],
                     stored_name=stored_name,
                     mime_type=mime_type,
-                    size=file_size,
+                    file_size=file_size,
                     sha256=sha256,
                     target_id=target_id,
                     storage_path=remote_file['url'],
