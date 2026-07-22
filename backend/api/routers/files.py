@@ -447,11 +447,8 @@ def list_files(
 
     if search:
         query = query.filter(DBFile.original_name.ilike(f"%{search}%"))
-    else:
-        if is_favorite and is_favorite.lower() == "true":
-            query = query.filter(DBFile.is_favorite == True)
-        else:
-            query = query.filter(DBFile.folder_id == None)
+    elif is_favorite and is_favorite.lower() == "true":
+        query = query.filter(DBFile.is_favorite == True)
 
     from sqlalchemy.sql.functions import coalesce
     files = (

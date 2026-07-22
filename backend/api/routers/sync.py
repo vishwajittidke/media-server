@@ -65,12 +65,9 @@ def sync_data(
         query = query.filter(DBFile.target_id == req.target_id)
     if req.search:
         query = query.filter(DBFile.original_name.ilike(f"%{req.search}%"))
-    else:
-        if req.is_favorite and req.is_favorite.lower() == "true":
-            query = query.filter(DBFile.is_favorite == True)
-        else:
-            query = query.filter(DBFile.folder_id == None)
-            
+    elif req.is_favorite and req.is_favorite.lower() == "true":
+        query = query.filter(DBFile.is_favorite == True)
+
     from sqlalchemy.sql.functions import coalesce
     files = query.order_by(coalesce(DBFile.date_taken, DBFile.created_at).desc()).offset(req.skip).limit(req.limit).all()
     
