@@ -81,27 +81,11 @@ def get_file_hash(data: bytes) -> str:
 # ── URL resolution ───────────────────────────────────────────────────────────
 
 def resolve_file_urls(f: DBFile):
-    object_path = f"photos/{f.sha256}{f.extension}"
     thumbnail_url = f.thumbnail_path or f"/api/v1/files/thumb/{f.stored_name}"
     preview_url = f"/api/v1/files/preview/{f.stored_name}"
     
     if getattr(f, 'target', None) and getattr(f.target, 'encrypted_credentials', None):
-        try:
-            from core.storage import StorageManager
-            from core.security import decrypt_credentials
-            creds = decrypt_credentials(f.target.encrypted_credentials)
-            manager = StorageManager(f.target.provider_type, creds)
-            
-            thumb_path = f"photos/thumbs/{f.sha256}{f.extension}"
-            preview_path = f"photos/previews/{f.sha256}{f.extension}"
-            
-            resolved_thumb = manager.get_url(thumb_path)
-            resolved_prev = manager.get_url(preview_path)
-            
-            if resolved_thumb: thumbnail_url = resolved_thumb
-            if resolved_prev: preview_url = resolved_prev
-        except Exception as e:
-            print(f"Error resolving target URLs: {e}")
+        pass # Always use local DB thumbnails/previews for target files
             
     elif f.storage_path and f.storage_path.startswith("http"):
         thumbnail_url = f.storage_path
