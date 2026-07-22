@@ -10,7 +10,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+  const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
 
   // On mount, check if we have a valid session cookie
   useEffect(() => {

@@ -126,7 +126,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
     try {
       if (pageNum === 0) setInitialLoading(true);
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       let url = `${apiUrl}/files/?skip=${pageNum * 50}&limit=50`;
       
       if (activeTab === 'trash') {
@@ -174,7 +174,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   const fetchStorage = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       let url = `${apiUrl}/files/storage`;
       if (activeTargetId) url += `?target_id=${activeTargetId}`;
       const response = await fetch(url, { credentials: 'include' });
@@ -189,7 +189,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   const fetchTargets = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const res = await fetch(`${apiUrl}/targets/`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
@@ -282,7 +282,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   const fetchFolders = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/folders/`, {
         credentials: 'include',
       });
@@ -317,7 +317,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     setUploading(true);
     setUploadProgress(0);
     
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+    const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
     let totalLoaded = 0;
     
     const totalSize = fileList.reduce((acc, file) => acc + file.size, 0);
@@ -397,7 +397,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/folders/`, {
         credentials: 'include',
         method: 'POST',
@@ -425,7 +425,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     e.stopPropagation();
     if (!window.confirm("Delete this album? Photos inside will be moved to 'All Photos'.")) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/folders/${folderId}`, {
         credentials: 'include',
         method: 'DELETE',
@@ -440,7 +440,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   const handleMoveFile = async (fileId: string, targetFolderId: string | null) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       
       if (fileId === 'BULK') {
         const response = await fetch(`${apiUrl}/files/bulk-move`, {
@@ -476,7 +476,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   const toggleFavorite = async (fileId: string) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}/favorite`, {
         credentials: 'include',
         method: 'PUT',
@@ -497,7 +497,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/auth/change-password`, {
         credentials: 'include',
         method: 'PUT',
@@ -535,7 +535,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     if (!window.confirm("WARNING: This will permanently delete your account and ALL your photos. This action cannot be undone. Are you absolutely sure?")) return;
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/auth/me`, {
         credentials: 'include',
         method: 'DELETE',
@@ -554,7 +554,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     e.preventDefault();
     e.stopPropagation();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/files/download/${fileId}`, {
         credentials: 'include',
       });
@@ -612,7 +612,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     if (!window.confirm("Are you sure you want to delete this photo? It will be moved to the Recycle Bin.")) return;
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}`, {
         credentials: 'include',
         method: 'DELETE',
@@ -632,7 +632,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const handleRestore = async (e: React.MouseEvent, fileId: string) => {
     e.stopPropagation();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}/restore`, {
         credentials: 'include',
         method: 'PUT',
@@ -650,7 +650,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     e.stopPropagation();
     if (!window.confirm("Permanently delete this photo? This cannot be undone.")) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/files/${fileId}/permanent`, {
         credentials: 'include',
         method: 'DELETE',
@@ -667,7 +667,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   const handleEmptyTrash = async () => {
     if (!window.confirm("Permanently delete ALL photos in the Recycle Bin? This cannot be undone.")) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/files/trash/empty`, {
         credentials: 'include',
         method: 'DELETE',
@@ -1110,7 +1110,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
               
               {!initialLoading && files.map((file, idx) => {
                 const isImage = file.mime_type && file.mime_type.startsWith('image/');
-                const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+                const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
                 const baseUrl = apiUrl.replace('/api/v1', '');
                 
                 const fileUrl = (file.storage_path || '').startsWith('http') 

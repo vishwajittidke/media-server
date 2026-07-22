@@ -18,7 +18,7 @@ export default function SystemLogs({ onClose }: { onClose: () => void }) {
 
   const fetchLogs = async () => {
     setLoading(true);
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://media-server-api.onrender.com/api/v1';
+    const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
     
     let query = `${apiUrl}/logs/?limit=100`;
     if (filterLevel) query += `&level=${filterLevel}`;
