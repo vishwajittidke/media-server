@@ -592,10 +592,19 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
                         object_path = match.group(1)
                 
                 if object_path:
-                    raw_bytes = manager.download_file(object_path)
-                    if raw_bytes:
-                        import io
-                        return StreamingResponse(io.BytesIO(raw_bytes), media_type=db_file.mime_type or "image/jpeg")
+                    try:
+                        raw_bytes = manager.download_file(object_path)
+                        if raw_bytes:
+                            import io
+                            return StreamingResponse(io.BytesIO(raw_bytes), media_type=db_file.mime_type or "image/jpeg")
+                        else:
+                            return Response(content=f"Download returned empty bytes for {object_path}", status_code=500)
+                    except Exception as e:
+                        return Response(content=f"manager.download_file exception: {e}", status_code=500)
+                else:
+                    return Response(content=f"object_path is None. storage_path={db_file.storage_path}, provider={target.provider_type.name}", status_code=500)
+            else:
+                return Response(content=f"Target {db_file.target_id} not found", status_code=500)
             
     # If no URL exists and it's not on disk, it's lost (because we removed FileData).
     raise HTTPException(status_code=404, detail="File data not found")
