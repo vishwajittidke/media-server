@@ -1,28 +1,12 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "frontend/dist"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/v1/(.*)",
-      "dest": "https://media-server-api.onrender.com/api/v1/$1",
-      "headers": {
-        "x-forwarded-host": "frontend-azure-gamma-16.vercel.app"
-      }
+      "source": "/api/v1/:path*",
+      "destination": "https://media-server-api.onrender.com/api/v1/:path*"
     },
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/frontend/$1"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
