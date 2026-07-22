@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Gallery from './Gallery';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
+import { TermsOfService } from './pages/TermsOfService';
 
 function App() {
   const [username, setUsername] = useState('');
@@ -10,6 +12,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [isColdStart, setIsColdStart] = useState(false);
+  const [currentPage, setCurrentPage] = useState<'login' | 'privacy' | 'terms'>('login');
 
   const apiUrl = '/api/v1';
 
@@ -115,6 +118,28 @@ function App() {
     return <Gallery wsToken={wsToken} onLogout={handleLogout} />;
   }
 
+  if (currentPage === 'privacy') {
+    return (
+      <div className="relative min-h-[100dvh] mesh-bg">
+        <button onClick={() => setCurrentPage('login')} className="absolute top-8 left-8 z-50 text-white/70 hover:text-white glass-panel px-4 py-2 rounded-xl text-sm font-medium">
+          ← Back to Login
+        </button>
+        <PrivacyPolicy />
+      </div>
+    );
+  }
+
+  if (currentPage === 'terms') {
+    return (
+      <div className="relative min-h-[100dvh] mesh-bg">
+        <button onClick={() => setCurrentPage('login')} className="absolute top-8 left-8 z-50 text-white/70 hover:text-white glass-panel px-4 py-2 rounded-xl text-sm font-medium">
+          ← Back to Login
+        </button>
+        <TermsOfService />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] relative flex items-center justify-center overflow-hidden mesh-bg text-slate-100">
       <div className="z-10 w-full max-w-sm px-6 animate-fade-in-up">
@@ -168,6 +193,12 @@ function App() {
               ) : 'Sign In'}
             </button>
           </form>
+
+          <div className="mt-8 pt-6 border-t border-white/10 flex justify-center gap-4 text-xs font-medium text-white/50">
+            <button onClick={() => setCurrentPage('privacy')} className="hover:text-white/80 transition-colors">Privacy Policy</button>
+            <span>•</span>
+            <button onClick={() => setCurrentPage('terms')} className="hover:text-white/80 transition-colors">Terms of Service</button>
+          </div>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func, func
 from typing import Optional
 
-from models import User, File as DBFile, Folder, FileData
+from models import User, File as DBFile, Folder
 from api.deps import get_db, get_current_user
 from api.routers.files import resolve_file_urls
 from pydantic import BaseModel
@@ -63,11 +63,9 @@ def sync_data(
     for f in files:
         thumbnail_url, preview_url = resolve_file_urls(f)
         
-        # Load Base64 Thumbnail
         thumb_base64 = None
-        file_data = db.query(FileData).filter(FileData.file_id == f.id, FileData.kind == "thumbnail").first()
-        if file_data and file_data.data:
-            thumb_base64 = "data:image/jpeg;base64," + base64.b64encode(file_data.data).decode('utf-8')
+        if f.thumbnail_base64:
+            thumb_base64 = f.thumbnail_base64
             
         file_list.append({
             "id": f.id,

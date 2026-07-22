@@ -6,6 +6,7 @@ import os
 import hashlib
 import io
 import mimetypes
+import base64
 import requests
 from datetime import datetime
 from PIL import Image
@@ -249,14 +250,13 @@ async def upload_files(
                 is_favorite=False,
                 date_taken=parsed_date,
                 deleted_at=None,
+                thumbnail_base64="data:image/jpeg;base64," + base64.b64encode(thumb_bytes).decode('utf-8') if thumb_bytes else None
             )
             db.add(db_file)
             db.flush()
 
             # ── 3. Local fallback & Caching ───────────────────────────────────────
             if not target_ok:
-                db_data_original = FileData(file_id=db_file.id, kind="original", data=raw_bytes)
-                db.add(db_data_original)
                 try:
                     with open(os.path.join(settings.UPLOADS_DIR, stored_name), "wb") as fout:
                         fout.write(raw_bytes)
@@ -265,7 +265,6 @@ async def upload_files(
 
             # Always save thumbnails & previews to local DB/Disk for instant loading
             if thumb_bytes:
-                db.add(FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes))
                 try:
                     with open(os.path.join(settings.THUMBNAILS_DIR, stored_name), "wb") as fout:
                         fout.write(thumb_bytes)
@@ -273,7 +272,6 @@ async def upload_files(
                     pass
 
             if preview_bytes:
-                db.add(FileData(file_id=db_file.id, kind="preview", data=preview_bytes))
                 try:
                     with open(os.path.join(settings.PREVIEWS_DIR, stored_name), "wb") as fout:
                         fout.write(preview_bytes)

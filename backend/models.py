@@ -97,6 +97,7 @@ class File(Base):
     height = Column(Integer, nullable=True)
     storage_path = Column(String)
     thumbnail_path = Column(String, nullable=True)
+    thumbnail_base64 = Column(String, nullable=True)
     upload_status = Column(Enum(UploadStatusEnum), default=UploadStatusEnum.PENDING)
     is_favorite = Column(Boolean, default=False)
     date_taken = Column(DateTime, nullable=True)
@@ -108,17 +109,6 @@ class File(Base):
     folder = relationship("Folder", back_populates="files")
     target = relationship("StorageTarget", back_populates="files")
     tags = relationship("Tag", secondary="file_tags")
-    file_data_list = relationship("FileData", back_populates="file", cascade="all, delete-orphan")
-
-class FileData(Base):
-    __tablename__ = "file_data"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    file_id = Column(String(36), ForeignKey("files.id", ondelete="CASCADE"), index=True)
-    kind = Column(String)  # "original", "thumbnail", "preview"
-    data = Column(LargeBinary)
-
-    file = relationship("File", back_populates="file_data_list")
 
 class Tag(Base):
     __tablename__ = "tags"
