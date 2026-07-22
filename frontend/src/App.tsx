@@ -9,13 +9,19 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [isColdStart, setIsColdStart] = useState(false);
 
   const apiUrl = '/api/v1';
 
   // On mount, check if we have a valid session cookie
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    
     const checkSession = async () => {
       try {
+        // If it takes more than 3 seconds, Render is probably waking up from a cold start
+        timeoutId = setTimeout(() => setIsColdStart(true), 3000);
+        
         const response = await fetch(`${apiUrl}/auth/check`, {
           credentials: 'include',
         });
@@ -25,10 +31,13 @@ function App() {
       } catch {
         // No valid session — stay on login
       } finally {
+        clearTimeout(timeoutId);
         setCheckingSession(false);
       }
     };
     checkSession();
+    
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -84,8 +93,20 @@ function App() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center mesh-bg">
-        <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin"></div>
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center mesh-bg px-4">
+        <div className="w-12 h-12 rounded-full border-4 border-white/10 border-t-blue-500 animate-spin mb-6"></div>
+        {isColdStart && (
+          <div className="animate-fade-in-up text-center max-w-sm glass-panel p-6 rounded-3xl">
+            <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Waking up the server...</h3>
+            <p className="text-white/60 text-sm font-medium mb-4">
+              Since this is hosted on Render's free tier, the server goes to sleep when inactive. It usually takes about <strong className="text-white">45-50 seconds</strong> to boot up.
+            </p>
+            <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: '100%', transition: 'width 45s linear', animationDuration: '2s' }} />
+            </div>
+            <p className="text-white/40 text-xs mt-3">Please don't refresh the page, hang tight!</p>
+          </div>
+        )}
       </div>
     );
   }
