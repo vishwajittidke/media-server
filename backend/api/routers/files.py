@@ -583,6 +583,26 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session, current
                 raw_bytes = manager.download_file(object_path)
                 if raw_bytes:
                     import io
+                    from PIL import Image
+                    
+                    if kind in ("thumbnail", "preview") and (db_file.mime_type or "").startswith("image/"):
+                        try:
+                            with Image.open(io.BytesIO(raw_bytes)) as img:
+                                if img.mode in ("RGBA", "P"):
+                                    img = img.convert("RGB")
+                                    
+                                if kind == "thumbnail":
+                                    img.thumbnail((600, 600))
+                                elif kind == "preview":
+                                    img.thumbnail((1920, 1080))
+                                    
+                                t_io = io.BytesIO()
+                                img.save(t_io, format="JPEG", quality=75)
+                                raw_bytes = t_io.getvalue()
+                                db_file.mime_type = "image/jpeg"
+                        except Exception as e:
+                            print(f"Failed to resize image dynamically: {e}")
+                            
                     return StreamingResponse(io.BytesIO(raw_bytes), media_type=db_file.mime_type or "image/jpeg")
             except Exception as e:
                 print(f"manager.download_file exception: {e}")
