@@ -22,7 +22,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
   const fetchTargets = async () => {
     setLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
+      const apiUrl = '/api/v1';
       const res = await fetch(`${apiUrl}/targets/`, {
         credentials: 'include',
       });
@@ -53,7 +53,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     // Implementation for saving target (POST or PUT)
-    const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const apiUrl = '/api/v1';
     const url = editingTarget?.id 
       ? `${apiUrl}/targets/${editingTarget.id}`
       : `${apiUrl}/targets/`;
@@ -91,7 +91,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this target?")) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
+      const apiUrl = '/api/v1';
       const res = await fetch(`${apiUrl}/targets/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -107,7 +107,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
   const handleSync = async (id: string) => {
     if (!confirm("This will scan your remote bucket and pull all images into the database. Depending on the size of your bucket, this may take a while. Proceed?")) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
+      const apiUrl = '/api/v1';
       const res = await fetch(`${apiUrl}/targets/${id}/sync`, {
         method: 'POST',
         credentials: 'include'
