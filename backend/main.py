@@ -35,6 +35,14 @@ try:
             conn.execute(text("ALTER TABLE files ADD COLUMN target_id VARCHAR(36);"))
         except Exception:
             pass # Ignore if it exists
+        try:
+            conn.execute(text("ALTER TABLE files ADD COLUMN IF NOT EXISTS thumbnail_base64 VARCHAR;"))
+        except Exception:
+            pass # Fallback if syntax varies
+        try:
+            conn.execute(text("DROP TABLE IF EXISTS file_data;"))
+        except Exception:
+            pass
         conn.commit()
 except Exception as e:
     print(f"Migration note (may already exist): {e}")
