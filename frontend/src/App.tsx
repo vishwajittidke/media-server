@@ -43,6 +43,15 @@ function App() {
     return () => clearTimeout(timeoutId);
   }, []);
 
+  // ── Keep Render Backend Awake ───────────────────────────────────────────────
+  useEffect(() => {
+    // Ping the backend every 10 minutes to prevent Render's 15-minute inactivity spin-down
+    const interval = setInterval(() => {
+      fetch(`${apiUrl}/health`).catch(() => {});
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
