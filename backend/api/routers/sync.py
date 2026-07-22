@@ -21,9 +21,11 @@ class SyncRequest(BaseModel):
 
 @router.get("/debug")
 def debug_sync(db: Session = Depends(get_db)):
+    from sqlalchemy import text
     try:
-        f = db.query(DBFile).first()
-        return {"status": "ok", "has_thumbnail_base64": hasattr(f, "thumbnail_base64")}
+        db.execute(text("ALTER TABLE files ADD COLUMN thumbnail_base64 VARCHAR;"))
+        db.commit()
+        return {"status": "migration_run_successfully"}
     except Exception as e:
         import traceback
         return {"status": "error", "traceback": traceback.format_exc()}
