@@ -182,6 +182,26 @@ app.mount("/previews",   StaticFiles(directory=settings.PREVIEWS_DIR),   name="p
 async def health_check():
     return {"status": "ok", "message": "Media Server is live"}
 
+# ── Keep-Alive Background Task ────────────────────────────────────────────────
+import asyncio
+import httpx
+from contextlib import asynccontextmanager
+
+async def self_ping():
+    """Ping the public Render URL every 14 minutes to prevent free-tier spin down."""
+    url = "https://media-server-api.onrender.com/api/v1/health"
+    while True:
+        await asyncio.sleep(14 * 60) # 14 minutes
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.get(url, timeout=10)
+        except Exception:
+            pass
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(self_ping())
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
