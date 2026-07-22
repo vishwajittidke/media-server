@@ -94,6 +94,8 @@ def resolve_file_urls(f: DBFile):
 async def upload_files(
     request: Request,
     files: List[UploadFile] = FastAPIFile(...),
+    preview_file: Optional[UploadFile] = FastAPIFile(None),
+    thumbnail_base64: Optional[str] = Form(None),
     target_id: Optional[str] = Form(None),
     folder_id: Optional[str] = Form(None),
     date_taken: Optional[str] = Form(None),
@@ -162,31 +164,10 @@ async def upload_files(
             thumbnail_path = f"/api/v1/files/thumb/{stored_name}"
             supabase_ok = False
 
-            # ── 1. Generate Thumbnails (Shared Logic) ─────────────────────────
-            thumb_bytes = None
-            preview_bytes = None
-
-            if mime_type.startswith("image/"):
-                try:
-                    with Image.open(io.BytesIO(raw_bytes)) as img:
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        
-                        # Thumbnail (Very small, saves bandwidth)
-                        thumb = img.copy()
-                        thumb.thumbnail((600, 600))
-                        t_io = io.BytesIO()
-                        thumb.save(t_io, format="JPEG", quality=75)
-                        thumb_bytes = t_io.getvalue()
-                        
-                        # Preview (1080p, moderate quality to save RAM/storage)
-                        preview = img.copy()
-                        preview.thumbnail((1920, 1080))
-                        p_io = io.BytesIO()
-                        preview.save(p_io, format="JPEG", quality=75)
-                        preview_bytes = p_io.getvalue()
-                except Exception as e:
-                    print(f"Thumbnail generation error: {e}")
+            # ── 1. Client-Side Previews ─────────────────────────
+            client_preview_bytes = None
+            if preview_file:
+                client_preview_bytes = await preview_file.read()
 
             # ── 2. Upload to Selected Storage Target ──────────────────────────────
             target_ok = False
@@ -207,6 +188,13 @@ async def upload_files(
                         manager = StorageManager(target.provider_type, creds)
                         
                         storage_path = manager.upload(object_path, raw_bytes, mime_type)
+                        
+                        if client_preview_bytes:
+                            preview_object_path = f"previews/{stored_name}"
+                            try:
+                                manager.upload(preview_object_path, client_preview_bytes, "image/jpeg")
+                            except Exception as e:
+                                print(f"Warning: Failed to upload preview to S3 for {stored_name}: {e}")
                         
                         target_ok = True
                         print(f"✅ Target upload OK: {original_name} -> {target.provider_type}")
@@ -250,7 +238,7 @@ async def upload_files(
                 is_favorite=False,
                 date_taken=parsed_date,
                 deleted_at=None,
-                thumbnail_base64="data:image/jpeg;base64," + base64.b64encode(thumb_bytes).decode('utf-8') if thumb_bytes else None
+                thumbnail_base64=thumbnail_base64
             )
             db.add(db_file)
             db.flush()
@@ -263,18 +251,10 @@ async def upload_files(
                 except Exception as e:
                     print(f"Cache write error (original): {e}")
 
-            # Always save thumbnails & previews to local DB/Disk for instant loading
-            if thumb_bytes:
-                try:
-                    with open(os.path.join(settings.THUMBNAILS_DIR, stored_name), "wb") as fout:
-                        fout.write(thumb_bytes)
-                except Exception as e:
-                    pass
-
-            if preview_bytes:
+            if client_preview_bytes:
                 try:
                     with open(os.path.join(settings.PREVIEWS_DIR, stored_name), "wb") as fout:
-                        fout.write(preview_bytes)
+                        fout.write(client_preview_bytes)
                 except Exception as e:
                     pass
 
@@ -579,33 +559,50 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session, current
             # Predict the object path based on how we uploaded it
             object_path = f"photos/{db_file.stored_name}"
             
-            try:
-                raw_bytes = manager.download_file(object_path)
-                if raw_bytes:
-                    import io
-                    from PIL import Image
+            raw_bytes = None
+            if kind == "preview":
+                try:
+                    raw_bytes = manager.download_file(f"previews/{db_file.stored_name}")
+                except Exception:
+                    # Fallback to downloading the original and resizing if preview is missing (legacy files)
+                    pass
+            
+            if not raw_bytes:
+                try:
+                    raw_bytes = manager.download_file(object_path)
+                except Exception as e:
+                    print(f"manager.download_file exception: {e}")
                     
-                    if kind in ("thumbnail", "preview") and (db_file.mime_type or "").startswith("image/"):
-                        try:
-                            with Image.open(io.BytesIO(raw_bytes)) as img:
-                                if img.mode in ("RGBA", "P"):
-                                    img = img.convert("RGB")
-                                    
-                                if kind == "thumbnail":
-                                    img.thumbnail((600, 600))
-                                elif kind == "preview":
-                                    img.thumbnail((1920, 1080))
-                                    
-                                t_io = io.BytesIO()
-                                img.save(t_io, format="JPEG", quality=75)
-                                raw_bytes = t_io.getvalue()
-                                db_file.mime_type = "image/jpeg"
-                        except Exception as e:
-                            print(f"Failed to resize image dynamically: {e}")
-                            
-                    return StreamingResponse(io.BytesIO(raw_bytes), media_type=db_file.mime_type or "image/jpeg")
-            except Exception as e:
-                print(f"manager.download_file exception: {e}")
+            if raw_bytes:
+                import io
+                from PIL import Image
+                
+                # If we requested a preview but fetched the original, resize it dynamically
+                needs_resize = False
+                if kind == "preview" and len(raw_bytes) > 2000000: # Over 2MB usually means it's the original
+                    needs_resize = True
+                if kind == "thumbnail":
+                    needs_resize = True
+                    
+                if needs_resize and (db_file.mime_type or "").startswith("image/"):
+                    try:
+                        with Image.open(io.BytesIO(raw_bytes)) as img:
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                                
+                            if kind == "thumbnail":
+                                img.thumbnail((600, 600))
+                            elif kind == "preview":
+                                img.thumbnail((1920, 1080))
+                                
+                            t_io = io.BytesIO()
+                            img.save(t_io, format="JPEG", quality=75)
+                            raw_bytes = t_io.getvalue()
+                            db_file.mime_type = "image/jpeg"
+                    except Exception as e:
+                        print(f"Failed to resize image dynamically: {e}")
+                        
+                return StreamingResponse(io.BytesIO(raw_bytes), media_type=db_file.mime_type or "image/jpeg")
             
     # If no URL exists and it's not on disk/cloud, it's lost
     raise HTTPException(status_code=404, detail="File data not found")

@@ -351,6 +351,72 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     }
   };
 
+  const generatePreview = async (file: File): Promise<Blob | null> => {
+    if (!file.type.startsWith('image/')) return null;
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const max = 1920;
+        if (width > max || height > max) {
+          if (width > height) {
+            height = Math.round((height * max) / width);
+            width = max;
+          } else {
+            width = Math.round((width * max) / height);
+            height = max;
+          }
+        } else {
+          resolve(null); // No need to resize if already small
+          return;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(blob);
+        }, 'image/jpeg', 0.75);
+      };
+      img.onerror = () => resolve(null);
+      img.src = objectUrl;
+    });
+  };
+
+  const generateThumbnailBase64 = async (file: File): Promise<string | null> => {
+    if (!file.type.startsWith('image/')) return null;
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const max = 600;
+        if (width > max || height > max) {
+          if (width > height) {
+            height = Math.round((height * max) / width);
+            width = max;
+          } else {
+            width = Math.round((width * max) / height);
+            height = max;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = () => resolve(null);
+      img.src = objectUrl;
+    });
+  };
+
   const uploadFiles = async (fileList: File[]) => {
     setUploading(true);
     setUploadProgress(0);
@@ -365,6 +431,16 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       const file = fileList[i];
       const formData = new FormData();
       formData.append("files", file);
+      
+      const previewBlob = await generatePreview(file);
+      if (previewBlob) {
+        formData.append("preview_file", previewBlob, `preview_${file.name}`);
+      }
+      
+      const thumbBase64 = await generateThumbnailBase64(file);
+      if (thumbBase64) {
+        formData.append("thumbnail_base64", thumbBase64);
+      }
       
       try {
         const exifData = await exifr.parse(file, { pick: ['DateTimeOriginal'] });
