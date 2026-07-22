@@ -12,7 +12,7 @@ from core.limiter import limiter
 
 from database import engine
 from models import Base, LogLevelEnum, LogCategoryEnum
-from api.routers import auth, files, ws, folders, targets, logs
+from api.routers import auth, files, ws, folders, targets, logs, sync
 from core.config import settings
 from core.logger import log_system_event
 from sqlalchemy import text
@@ -157,7 +157,6 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-from api.routers import auth, files, targets, system, folders, logs, sync
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"])
