@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func, func
 from typing import Optional
 
-from models import User, File as DBFile, Folder
+from models import User, File as DBFile, Folder, StorageTarget
 from api.deps import get_db, get_current_user
 from api.routers.files import resolve_file_urls
 from pydantic import BaseModel
@@ -34,7 +34,22 @@ def sync_data(
         
     used = db.query(func.sum(DBFile.file_size)).filter(base_filter).scalar() or 0
     file_count = db.query(func.count(DBFile.id)).filter(base_filter).scalar() or 0
-    storage = {"used": used, "limit": 150 * 1024 * 1024, "file_count": file_count}
+    # Default free tier limits in bytes
+    limits = {
+        "AWS_S3": 5 * 1024 * 1024 * 1024,      # 5 GB
+        "GOOGLE_DRIVE": 15 * 1024 * 1024 * 1024, # 15 GB
+        "CLOUDINARY": 25 * 1024 * 1024 * 1024,   # 25 GB
+        "SUPABASE": 1 * 1024 * 1024 * 1024,      # 1 GB
+        "LOCAL": 500 * 1024 * 1024               # 500 MB (fallback)
+    }
+    
+    current_limit = limits["LOCAL"]
+    if req.target_id and req.target_id != "local":
+        target = db.query(StorageTarget).filter(StorageTarget.id == req.target_id).first()
+        if target and target.provider_type:
+            current_limit = limits.get(target.provider_type.name, limits["LOCAL"])
+            
+    storage = {"used": used, "limit": current_limit, "file_count": file_count}
     
     # 2. Get Folders
     folders = db.query(Folder).filter(Folder.owner_id == current_user.id).all()
