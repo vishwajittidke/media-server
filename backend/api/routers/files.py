@@ -558,8 +558,44 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
                     finally:
                         r.close()
                 return StreamingResponse(iterfile(), media_type=db_file.mime_type or "image/jpeg")
+            else:
+                r.close()
         except Exception as e:
             print(f"Proxy stream failed for {db_file.stored_name}: {e}")
+
+        # Fallback for private buckets (403 Forbidden) or other HTTP errors
+        if db_file.target_id:
+            from models import StorageTarget
+            from core.storage import StorageManager
+            from core.security import decrypt_credentials
+            target = db.query(StorageTarget).filter(StorageTarget.id == db_file.target_id).first()
+            if target:
+                creds = decrypt_credentials(target.credentials)
+                manager = StorageManager(target.provider_type, creds)
+                object_path = None
+                
+                if target.provider_type.name == "AWS_S3" and ".amazonaws.com/" in db_file.storage_path:
+                    object_path = db_file.storage_path.split(".amazonaws.com/")[1]
+                elif target.provider_type.name == "SUPABASE":
+                    bucket = creds.get('supabase_bucket', '')
+                    if f"/public/{bucket}/" in db_file.storage_path:
+                        object_path = db_file.storage_path.split(f"/public/{bucket}/")[1]
+                elif target.provider_type.name == "CLOUDINARY" and "/upload/" in db_file.storage_path:
+                    # e.g. https://res.cloudinary.com/demo/image/upload/v1234/sample.jpg
+                    parts = db_file.storage_path.split("/")
+                    object_path = parts[-1] # fallback filename
+                elif target.provider_type.name == "GOOGLE_DRIVE":
+                    # e.g. https://drive.google.com/file/d/1A2B3C4D5E/view?usp=drivesdk
+                    import re
+                    match = re.search(r'/d/([a-zA-Z0-9_-]+)', db_file.storage_path)
+                    if match:
+                        object_path = match.group(1)
+                
+                if object_path:
+                    raw_bytes = manager.download_file(object_path)
+                    if raw_bytes:
+                        import io
+                        return StreamingResponse(io.BytesIO(raw_bytes), media_type=db_file.mime_type or "image/jpeg")
             
     # If no URL exists and it's not on disk, it's lost (because we removed FileData).
     raise HTTPException(status_code=404, detail="File data not found")
