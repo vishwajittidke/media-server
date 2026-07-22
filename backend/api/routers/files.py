@@ -475,7 +475,7 @@ def list_files(
             "created_at": f.created_at.isoformat() if f.created_at else None,
             "date_taken": f.date_taken.isoformat() if f.date_taken else None,
             "is_favorite": f.is_favorite,
-            "storage_path": f.storage_path,
+            "storage_path": f"/api/v1/files/raw/{f.stored_name}",
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,
             "owner_username": owner_username,
@@ -696,7 +696,7 @@ def list_trash(
             "mime_type": f.mime_type,
             "deleted_at": f.deleted_at.isoformat() if f.deleted_at else None,
             "created_at": f.created_at.isoformat() if f.created_at else None,
-            "storage_path": f.storage_path,
+            "storage_path": f"/api/v1/files/raw/{f.stored_name}",
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,
         })
