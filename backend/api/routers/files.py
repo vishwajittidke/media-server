@@ -534,14 +534,17 @@ def download_file(
 
 # ── Serve Files (Database/Cache Hybrid) ──────────────────────────────────────
 
-def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
+def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session, current_user: User = None):
     # 1. Try local disk cache first
     local_path = os.path.join(cache_dir, stored_name)
     if os.path.exists(local_path):
         return FileResponse(local_path)
     
     # 2. If not in cache (e.g. after Render restart), pull from Database
-    db_file = db.query(DBFile).filter(DBFile.stored_name == stored_name).first()
+    query = db.query(DBFile).filter(DBFile.stored_name == stored_name)
+    if current_user:
+        query = query.filter(DBFile.owner_id == current_user.id)
+    db_file = query.first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -610,16 +613,16 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
     raise HTTPException(status_code=404, detail="File data not found")
 
 @router.get("/raw/{stored_name}")
-def get_raw_file(stored_name: str, db: Session = Depends(get_db)):
-    return serve_file(stored_name, "original", settings.UPLOADS_DIR, db)
+def get_raw_file(stored_name: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return serve_file(stored_name, "original", settings.UPLOADS_DIR, db, current_user)
 
 @router.get("/thumb/{stored_name}")
-def get_thumb_file(stored_name: str, db: Session = Depends(get_db)):
-    return serve_file(stored_name, "thumbnail", settings.THUMBNAILS_DIR, db)
+def get_thumb_file(stored_name: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return serve_file(stored_name, "thumbnail", settings.THUMBNAILS_DIR, db, current_user)
 
 @router.get("/preview/{stored_name}")
-def get_preview_file(stored_name: str, db: Session = Depends(get_db)):
-    return serve_file(stored_name, "preview", settings.PREVIEWS_DIR, db)
+def get_preview_file(stored_name: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return serve_file(stored_name, "preview", settings.PREVIEWS_DIR, db, current_user)
 
 
 # ── Soft delete (Recycle Bin) ────────────────────────────────────────────────
