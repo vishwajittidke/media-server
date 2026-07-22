@@ -23,9 +23,9 @@ class SyncRequest(BaseModel):
 def debug_sync(db: Session = Depends(get_db)):
     from sqlalchemy import text
     try:
-        db.execute(text("ALTER TABLE files ADD COLUMN thumbnail_base64 VARCHAR;"))
+        res = db.execute(text("DELETE FROM files WHERE target_id IS NULL;"))
         db.commit()
-        return {"status": "migration_run_successfully"}
+        return {"status": "deleted_local_ghost_files", "rows": res.rowcount}
     except Exception as e:
         import traceback
         return {"status": "error", "traceback": traceback.format_exc()}
