@@ -19,6 +19,15 @@ class SyncRequest(BaseModel):
     is_favorite: Optional[str] = None
     search: Optional[str] = None
 
+@router.get("/debug")
+def debug_sync(db: Session = Depends(get_db)):
+    try:
+        f = db.query(DBFile).first()
+        return {"status": "ok", "has_thumbnail_base64": hasattr(f, "thumbnail_base64")}
+    except Exception as e:
+        import traceback
+        return {"status": "error", "traceback": traceback.format_exc()}
+
 @router.post("/")
 def sync_data(
     req: SyncRequest,
