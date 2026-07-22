@@ -467,6 +467,15 @@ def list_files(
     result = []
     for f, owner_username in files:
         thumbnail_url, preview_url = resolve_file_urls(f)
+        
+        # Safe Base64 Bundle
+        import base64
+        from models import FileData
+        thumb_base64 = None
+        file_data = db.query(FileData).filter(FileData.file_id == f.id, FileData.kind == "thumbnail").first()
+        if file_data and file_data.data:
+            thumb_base64 = "data:image/jpeg;base64," + base64.b64encode(file_data.data).decode('utf-8')
+            
         result.append({
             "id": f.id,
             "original_name": f.original_name,
@@ -478,6 +487,7 @@ def list_files(
             "storage_path": f"/api/v1/files/raw/{f.stored_name}",
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,
+            "thumbnail_base64": thumb_base64,
             "owner_username": owner_username,
         })
     return result

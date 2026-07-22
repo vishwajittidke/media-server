@@ -16,6 +16,7 @@ interface FileItem {
   storage_path?: string;
   thumbnail_url?: string;
   preview_url?: string;
+  thumbnail_base64?: string;
   is_favorite?: boolean;
   date_taken?: string;
   owner_username?: string;
@@ -123,6 +124,41 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const fetchSyncData = useCallback(async (folderId: string | null) => {
+    try {
+      setInitialLoading(true);
+      const apiUrl = '/api/v1';
+      let url = `${apiUrl}/sync/`;
+      
+      const payload: any = { skip: 0, limit: 50 };
+      if (folderId && activeTab !== 'favorites') payload.folder_id = folderId;
+      if (activeTab === 'favorites') payload.is_favorite = 'true';
+      if (activeTargetId && activeTargetId !== 'null') payload.target_id = activeTargetId;
+      if (debouncedSearch) payload.search = debouncedSearch;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFiles(data.files);
+        setStorageData(data.storage);
+        setFolders(data.folders);
+        setHasMore(data.files.length === 50);
+      } else if (response.status === 401) {
+        onLogout();
+      }
+    } catch (err) {
+      console.error("Failed to sync data", err);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, [activeTab, onLogout, debouncedSearch, activeTargetId]);
+
   const fetchFiles = useCallback(async (folderId: string | null, pageNum: number) => {
     try {
       if (pageNum === 0) setInitialLoading(true);
@@ -211,12 +247,14 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
   useEffect(() => {
     setPage(0);
     setHasMore(true);
-    fetchFiles(currentFolderId, 0);
-    if (activeTab === 'photos' || activeTab === 'albums') {
-      fetchFolders();
+    
+    if (activeTab === 'trash') {
+      fetchFiles(currentFolderId, 0);
+      fetchStorage();
+    } else {
+      fetchSyncData(currentFolderId);
     }
-    fetchStorage();
-  }, [currentFolderId, activeTab, debouncedSearch, activeTargetId, fetchFiles]);
+  }, [currentFolderId, activeTab, debouncedSearch, activeTargetId, fetchFiles, fetchSyncData]);
 
   useEffect(() => {
     if (page > 0) {
@@ -1124,7 +1162,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 };
 
                 const previewUrl = isImage ? resolveUrl(file.preview_url) : fileUrl;
-                const thumbnailUrl = isImage ? resolveUrl(file.thumbnail_url) : fileUrl;
+                const thumbnailUrl = isImage ? (file.thumbnail_base64 || resolveUrl(file.thumbnail_url)) : fileUrl;
                 const dim = dimensions[file.id] || { width: 1024, height: 768 }; 
                 
                 return (

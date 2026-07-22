@@ -157,8 +157,11 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(auth.router,    prefix="/api/v1/auth",    tags=["auth"])
-app.include_router(files.router,   prefix="/api/v1/files",   tags=["files"])
+from api.routers import auth, files, gallery, targets, system, sync
+
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"])
+app.include_router(files.router, prefix="/api/v1/files", tags=["files"])
 app.include_router(folders.router, prefix="/api/v1/folders", tags=["folders"])
 app.include_router(logs.router,    prefix="/api/v1/logs",    tags=["logs"])
 app.include_router(targets.router)
