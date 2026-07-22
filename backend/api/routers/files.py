@@ -556,6 +556,9 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
         # Fallback to original if thumbnail/preview doesn't exist
         db_data = db.query(FileData).filter(FileData.file_id == db_file.id, FileData.kind == "original").first()
         if not db_data:
+            if db_file.storage_path and db_file.storage_path.startswith("http"):
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(url=db_file.storage_path)
             raise HTTPException(status_code=404, detail="File data not found")
             
     # 3. Write back to local cache to speed up future requests
