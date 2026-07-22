@@ -23,9 +23,9 @@ class SyncRequest(BaseModel):
 def debug_sync(db: Session = Depends(get_db)):
     from sqlalchemy import text
     try:
-        res = db.execute(text("DELETE FROM files WHERE target_id IS NULL;"))
-        db.commit()
-        return {"status": "deleted_local_ghost_files", "rows": res.rowcount}
+        res = db.execute(text("SELECT stored_name, target_id FROM files WHERE target_id IS NULL OR target_id != '';"))
+        rows = res.fetchall()
+        return {"status": "ok", "data": [{"name": r[0], "target": r[1]} for r in rows]}
     except Exception as e:
         import traceback
         return {"status": "error", "traceback": traceback.format_exc()}
