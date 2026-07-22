@@ -736,7 +736,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   return (
     <div 
-      className="min-h-screen mesh-bg text-white relative overflow-hidden font-sans"
+      className="min-h-[100dvh] mesh-bg text-white relative overflow-hidden font-sans"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

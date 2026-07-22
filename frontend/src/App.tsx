@@ -84,7 +84,7 @@ function App() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-screen flex items-center justify-center mesh-bg">
+      <div className="min-h-[100dvh] flex items-center justify-center mesh-bg">
         <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin"></div>
       </div>
     );
@@ -95,7 +95,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center overflow-hidden mesh-bg text-slate-100">
+    <div className="min-h-[100dvh] relative flex items-center justify-center overflow-hidden mesh-bg text-slate-100">
       <div className="z-10 w-full max-w-sm px-6 animate-fade-in-up">
         <div className="glass-panel p-8 rounded-[32px] relative overflow-hidden">
           <div className="text-center mb-8 mt-2">
