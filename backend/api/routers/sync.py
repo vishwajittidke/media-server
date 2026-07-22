@@ -19,13 +19,45 @@ class SyncRequest(BaseModel):
     is_favorite: Optional[str] = None
     search: Optional[str] = None
 
-@router.get("/debug")
-def debug_sync(db: Session = Depends(get_db)):
-    from sqlalchemy import text
+@router.get("/backfill")
+def backfill_thumbnails(db: Session = Depends(get_db)):
     try:
-        res = db.execute(text("SELECT stored_name, target_id FROM files WHERE target_id IS NULL OR target_id != '';"))
-        rows = res.fetchall()
-        return {"status": "ok", "data": [{"name": r[0], "target": r[1]} for r in rows]}
+        from core.storage import StorageManager
+        from core.security import decrypt_credentials
+        from PIL import Image
+        import io
+        import base64
+        
+        files_to_fix = db.query(DBFile).filter(
+            DBFile.thumbnail_base64 == None,
+            DBFile.target_id != None
+        ).all()
+        
+        updated = 0
+        for f in files_to_fix:
+            target = db.query(StorageTarget).filter(StorageTarget.id == f.target_id).first()
+            if target and target.encrypted_credentials:
+                creds = decrypt_credentials(target.encrypted_credentials)
+                manager = StorageManager(target.provider_type, creds)
+                object_path = f"photos/{f.stored_name}"
+                
+                try:
+                    raw_bytes = manager.download_file(object_path)
+                    if raw_bytes:
+                        with Image.open(io.BytesIO(raw_bytes)) as img:
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                            img.thumbnail((600, 600))
+                            t_io = io.BytesIO()
+                            img.save(t_io, format="JPEG", quality=75)
+                            b64 = "data:image/jpeg;base64," + base64.b64encode(t_io.getvalue()).decode('utf-8')
+                            f.thumbnail_base64 = b64
+                            updated += 1
+                except Exception as e:
+                    print(f"Failed to backfill {f.stored_name}: {e}")
+                    
+        db.commit()
+        return {"status": "ok", "updated": updated}
     except Exception as e:
         import traceback
         return {"status": "error", "traceback": traceback.format_exc()}
