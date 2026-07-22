@@ -95,7 +95,7 @@ from PIL import Image
 import io
 import mimetypes
 
-from models import File as DBFile, FileData
+from models import File as DBFile
 from core.storage import StorageManager
 from core.security import decrypt_credentials
 
@@ -192,6 +192,7 @@ def sync_target_task(target_id: str, owner_id: str):
                 thumbnail_path = f"/api/v1/files/thumb/{stored_name}"
                 preview_path = f"/api/v1/files/preview/{stored_name}"
                 
+                import base64
                 db_file = DBFile(
                     owner_id=owner_id,
                     original_name=remote_file['name'],
@@ -203,15 +204,10 @@ def sync_target_task(target_id: str, owner_id: str):
                     storage_path=remote_file['url'],
                     thumbnail_path=thumbnail_path,
                     preview_path=preview_path,
+                    thumbnail_base64="data:image/jpeg;base64," + base64.b64encode(thumb_bytes).decode('utf-8') if thumb_bytes else None
                 )
                 db.add(db_file)
                 db.flush()
-                
-                if thumb_bytes:
-                    db.add(FileData(file_id=db_file.id, kind="thumbnail", data=thumb_bytes))
-                if preview_bytes:
-                    db.add(FileData(file_id=db_file.id, kind="preview", data=preview_bytes))
-                    
                 db.commit()
             except Exception as loop_e:
                 db.rollback()

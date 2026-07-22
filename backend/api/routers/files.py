@@ -14,7 +14,7 @@ Image.MAX_IMAGE_PIXELS = None
 from pydantic import BaseModel
 
 from core.config import settings
-from models import User, File as DBFile, Tag, FileTag, UploadStatusEnum, Folder, FileData
+from models import User, File as DBFile, Tag, FileTag, UploadStatusEnum, Folder
 from api.deps import get_db, get_current_user
 from core.websocket import manager
 from core.limiter import limiter
@@ -467,12 +467,9 @@ def list_files(
         thumbnail_url, preview_url = resolve_file_urls(f)
         
         # Safe Base64 Bundle
-        import base64
-        from models import FileData
         thumb_base64 = None
-        file_data = db.query(FileData).filter(FileData.file_id == f.id, FileData.kind == "thumbnail").first()
-        if file_data and file_data.data:
-            thumb_base64 = "data:image/jpeg;base64," + base64.b64encode(file_data.data).decode('utf-8')
+        if f.thumbnail_base64:
+            thumb_base64 = f.thumbnail_base64
             
         result.append({
             "id": f.id,
@@ -551,36 +548,24 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
         
-    db_data = db.query(FileData).filter(FileData.file_id == db_file.id, FileData.kind == kind).first()
-    if not db_data:
-        # Fallback to original if thumbnail/preview doesn't exist
-        db_data = db.query(FileData).filter(FileData.file_id == db_file.id, FileData.kind == "original").first()
-        if not db_data:
-            if db_file.storage_path and db_file.storage_path.startswith("http"):
-                try:
-                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-                    r = requests.get(db_file.storage_path, headers=headers, stream=True, timeout=15)
-                    if r.status_code == 200:
-                        def iterfile():
-                            try:
-                                for chunk in r.iter_content(chunk_size=64 * 1024):
-                                    yield chunk
-                            finally:
-                                r.close()
-                        return StreamingResponse(iterfile(), media_type=db_file.mime_type or "image/jpeg")
-                except Exception as e:
-                    print(f"Proxy stream failed for {db_file.stored_name}: {e}")
-            raise HTTPException(status_code=404, detail="File data not found")
+    # We no longer store LargeBinary in DB. So we MUST proxy from cloud storage if local cache misses.
+    if db_file.storage_path and db_file.storage_path.startswith("http"):
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            r = requests.get(db_file.storage_path, headers=headers, stream=True, timeout=15)
+            if r.status_code == 200:
+                def iterfile():
+                    try:
+                        for chunk in r.iter_content(chunk_size=64 * 1024):
+                            yield chunk
+                    finally:
+                        r.close()
+                return StreamingResponse(iterfile(), media_type=db_file.mime_type or "image/jpeg")
+        except Exception as e:
+            print(f"Proxy stream failed for {db_file.stored_name}: {e}")
             
-    # 3. Write back to local cache to speed up future requests
-    try:
-        os.makedirs(cache_dir, exist_ok=True)
-        with open(local_path, "wb") as fout:
-            fout.write(db_data.data)
-    except Exception as e:
-        print(f"Failed to write cache: {e}")
-        
-    return Response(content=db_data.data, media_type=db_file.mime_type)
+    # If no URL exists and it's not on disk, it's lost (because we removed FileData).
+    raise HTTPException(status_code=404, detail="File data not found")
 
 @router.get("/raw/{stored_name}")
 def get_raw_file(stored_name: str, db: Session = Depends(get_db)):
