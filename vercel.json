@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "https://media-server-api.onrender.com/api/v1/:path*"
+    }
+  ],
   "builds": [
     {
       "src": "frontend/package.json",
@@ -10,6 +16,13 @@
     }
   ],
   "routes": [
+    {
+      "src": "/api/v1/(.*)",
+      "dest": "https://media-server-api.onrender.com/api/v1/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
     {
       "src": "/(.*)",
       "dest": "frontend/$1"

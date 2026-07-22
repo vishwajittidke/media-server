@@ -83,14 +83,6 @@ def get_file_hash(data: bytes) -> str:
 def resolve_file_urls(f: DBFile):
     thumbnail_url = f.thumbnail_path or f"/api/v1/files/thumb/{f.stored_name}"
     preview_url = f"/api/v1/files/preview/{f.stored_name}"
-    
-    if getattr(f, 'target', None) and getattr(f.target, 'encrypted_credentials', None):
-        pass # Always use local DB thumbnails/previews for target files
-            
-    elif f.storage_path and f.storage_path.startswith("http"):
-        thumbnail_url = f.storage_path
-        preview_url = f.storage_path
-        
     return thumbnail_url, preview_url
 
 
@@ -557,8 +549,19 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session):
         db_data = db.query(FileData).filter(FileData.file_id == db_file.id, FileData.kind == "original").first()
         if not db_data:
             if db_file.storage_path and db_file.storage_path.startswith("http"):
-                from fastapi.responses import RedirectResponse
-                return RedirectResponse(url=db_file.storage_path)
+                try:
+                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                    r = requests.get(db_file.storage_path, headers=headers, stream=True, timeout=15)
+                    if r.status_code == 200:
+                        def iterfile():
+                            try:
+                                for chunk in r.iter_content(chunk_size=64 * 1024):
+                                    yield chunk
+                            finally:
+                                r.close()
+                        return StreamingResponse(iterfile(), media_type=db_file.mime_type or "image/jpeg")
+                except Exception as e:
+                    print(f"Proxy stream failed for {db_file.stored_name}: {e}")
             raise HTTPException(status_code=404, detail="File data not found")
             
     # 3. Write back to local cache to speed up future requests
