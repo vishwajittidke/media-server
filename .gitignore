@@ -1,10 +1,23 @@
+# Dependencies
 node_modules/
+
+# Build
 /dist
 /dist-ssr
+
+# Environment
+.env
+.env.bak
 *.local
-logs/
-*.log
-npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.db
+
+# IDE
 .vscode/
 !.vscode/extensions.json
 .idea/
@@ -14,10 +27,23 @@ npm-debug.log*
 *.njsproj
 *.sln
 *.sw?
-.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Local storage (ephemeral)
 uploads/
 thumbnails/
 previews/
+
+# Scratch / debug files
+scratch_*.py
+dummy*
+*.gz
+
+# Agents (local only)
 /agents/
 
 # Ensure Vercel config is tracked

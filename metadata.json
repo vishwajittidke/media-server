@@ -1,6 +1,0 @@
-{
-  "name": "Media Server",
-  "description": "A modern, secure, self-hosted web application to upload, organize, and browse images and files with real-time sync.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
