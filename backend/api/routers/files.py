@@ -58,8 +58,8 @@ def _sb_delete(object_path: str):
     url = f"{settings.SUPABASE_URL}/storage/v1/object/{bucket}/{object_path}"
     try:
         requests.delete(url, headers=_sb_headers(), timeout=30)
-    except Exception as e:
-        print(f"Supabase delete failed: {e}")
+    except Exception:
+        pass
 
 def _sb_transform_url(object_path: str, width: int, quality: int = 80) -> str:
     """
@@ -193,16 +193,12 @@ async def upload_files(
                             preview_object_path = f"previews/{stored_name}"
                             try:
                                 manager.upload(preview_object_path, client_preview_bytes, "image/jpeg")
-                            except Exception as e:
-                                print(f"Warning: Failed to upload preview to S3 for {stored_name}: {e}")
+                            except Exception:
+                                pass
                         
                         target_ok = True
-                        print(f"✅ Target upload OK: {original_name} -> {target.provider_type}")
                     except Exception as e:
-                        import traceback
                         from core.logger import log_system_event, LogLevelEnum, LogCategoryEnum
-                        print(f"❌ Target upload failed for {original_name}: {e}")
-                        traceback.print_exc()
                         log_system_event(
                             level=LogLevelEnum.ERROR,
                             category=LogCategoryEnum.UPLOAD,
@@ -248,8 +244,8 @@ async def upload_files(
                 try:
                     with open(os.path.join(settings.UPLOADS_DIR, stored_name), "wb") as fout:
                         fout.write(raw_bytes)
-                except Exception as e:
-                    print(f"Cache write error (original): {e}")
+                except Exception:
+                    pass
 
             if client_preview_bytes:
                 try:
@@ -543,8 +539,8 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session, current
                 return StreamingResponse(iterfile(), media_type=db_file.mime_type or "image/jpeg")
             else:
                 r.close()
-        except Exception as e:
-            print(f"Proxy stream failed for {db_file.stored_name}: {e}")
+        except Exception:
+            pass
 
     # Fallback for private buckets (403 Forbidden), HTTP errors, or older files missing http storage_path
     if db_file.target_id:
@@ -570,8 +566,8 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session, current
             if not raw_bytes:
                 try:
                     raw_bytes = manager.download_file(object_path)
-                except Exception as e:
-                    print(f"manager.download_file exception: {e}")
+                except Exception:
+                    pass
                     
             if raw_bytes:
                 import io

@@ -53,8 +53,8 @@ def backfill_thumbnails(db: Session = Depends(get_db)):
                             b64 = "data:image/jpeg;base64," + base64.b64encode(t_io.getvalue()).decode('utf-8')
                             f.thumbnail_base64 = b64
                             updated += 1
-                except Exception as e:
-                    print(f"Failed to backfill {f.stored_name}: {e}")
+                except Exception:
+                    pass
                     
         db.commit()
         return {"status": "ok", "updated": updated}

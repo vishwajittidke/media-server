@@ -42,8 +42,8 @@ try:
                 conn.commit()
             except Exception:
                 conn.rollback()
-except Exception as e:
-    print(f"Migration note (may already exist): {e}")
+except Exception:
+    pass
 
 
 
@@ -78,8 +78,8 @@ try:
                 db_session.query(File).update({File.target_id: target.id})
                 db_session.commit()
                 print("✅ Auto-migrated legacy Supabase config to Target!")
-except Exception as e:
-    print(f"Auto-migration failed: {e}")
+except Exception:
+    pass
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title=settings.PROJECT_NAME)
