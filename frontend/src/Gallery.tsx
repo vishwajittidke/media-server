@@ -1200,14 +1200,14 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
             <motion.div 
               layout
               className={layout === 'masonry' 
-                ? 'gap-4 space-y-4 animate-fade-in-up' 
-                : 'grid gap-4 sm:gap-6 animate-fade-in-up'
+                ? 'gap-2 sm:gap-4 animate-fade-in-up' 
+                : 'grid gap-2 sm:gap-4 md:gap-6 animate-fade-in-up'
               } 
               style={{ 
                 animationDelay: '0.1s',
                 ...(layout === 'masonry' 
-                  ? { columnCount: gridScale, columnWidth: '120px' } 
-                  : { gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(100, 400 - (gridScale * 30))}px, 1fr))` }
+                  ? { columnCount: typeof window !== 'undefined' && window.innerWidth < 640 ? Math.min(gridScale, 3) : gridScale } 
+                  : { gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(80, 400 - (gridScale * 30))}px, 1fr))` }
                 )
               }}
             >
