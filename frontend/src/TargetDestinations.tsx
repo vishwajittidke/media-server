@@ -134,7 +134,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
             <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>
             </div>
-            <h2 className="text-2xl font-bold text-white">Target Destinations</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Target Destinations</h2>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -142,9 +142,9 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
         </div>
 
         {/* Content */}
-        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-white/10 flex flex-col bg-slate-900/50 min-h-[200px] md:min-h-0 shrink-0">
+          <div className="w-full lg:w-1/3 lg:min-w-[280px] border-b lg:border-b-0 lg:border-r border-white/10 flex flex-col bg-slate-900/50 min-h-[200px] lg:min-h-0 shrink-0">
             <div className="p-4 flex justify-between items-center border-b border-white/5">
               <h3 className="text-lg font-semibold text-white/90">Saved Targets</h3>
               <button 
@@ -153,7 +153,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
                   setFormData({ provider_type: 'AWS_S3' });
                   setActiveTab('edit');
                 }}
-                className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-full transition-colors"
+                className="px-3 sm:px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-full transition-colors whitespace-nowrap shrink-0"
               >
                 New Target
               </button>
@@ -192,9 +192,9 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
           </div>
 
           {/* Main Edit Area */}
-          <div className="w-full md:w-2/3 bg-slate-800/30 p-4 sm:p-8 overflow-y-auto">
+          <div className="w-full lg:w-2/3 lg:flex-1 bg-slate-800/30 p-4 sm:p-8 overflow-y-auto">
             {activeTab === 'list' ? (
-              <div className="h-full flex flex-col items-center justify-center text-white/40 py-10 md:py-0">
+              <div className="h-full flex flex-col items-center justify-center text-white/40 py-10 lg:py-0">
                 <svg className="w-24 h-24 mb-6 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                 <h3 className="text-xl font-medium text-white/60 mb-2">Select a Target Destination</h3>
                 <p className="text-sm text-center max-w-sm">Choose an existing target from the left or click 'New Target' to configure a new integration.</p>
