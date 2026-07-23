@@ -1315,7 +1315,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                               src={thumbnailUrl} 
                               alt={file.original_name} 
                               className={`${layout === 'masonry' ? 'w-full h-auto' : 'absolute inset-0 w-full h-full object-cover'} transition-all ${isSelectMode && selectedFileIds.has(file.id) ? 'scale-90 rounded-2xl opacity-70' : 'opacity-90 group-hover:opacity-100'}`}
-                              loading="lazy"
+                              decoding="async"
                               onError={(e) => { 
                                 const img = e.target as HTMLImageElement;
                                 if (!img.dataset.retried) {
