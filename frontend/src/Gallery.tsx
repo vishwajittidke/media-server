@@ -289,12 +289,19 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
   useEffect(() => {
     let ws: WebSocket;
+    let retries = 0;
+    const maxRetries = 5;
     
     const connectWs = () => {
+      if (retries >= maxRetries) return;
       const wsUrl = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? `wss://${window.location.hostname}/api/v1/ws` : `ws://${window.location.hostname}:8000/api/v1/ws`);
       if (!wsToken) return;
       ws = new WebSocket(`${wsUrl}/${wsToken}`);
       
+      ws.onopen = () => {
+        retries = 0; // Reset on successful connection
+      };
+
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "FILE_UPLOADED") {
@@ -304,7 +311,9 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
       };
 
       ws.onclose = () => {
-        setTimeout(connectWs, 3000);
+        retries++;
+        const delay = Math.min(3000 * Math.pow(2, retries), 60000); // Exponential backoff, max 60s
+        setTimeout(connectWs, delay);
       };
     };
 

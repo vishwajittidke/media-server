@@ -46,21 +46,6 @@ except Exception as e:
     print(f"Migration note (may already exist): {e}")
 
 
-# ── Cleanup Ghost Files ──────────────────────────────────────────────────────
-# Delete old files that were lost to the ephemeral disk wipe before the FileData fix
-try:
-    with engine.connect() as conn:
-        conn.execute(text("""
-            DELETE FROM files 
-            WHERE storage_path LIKE '/uploads/%' 
-            AND id NOT IN (SELECT file_id FROM file_data)
-        """))
-        conn.commit()
-except Exception as e:
-    print(f"Ghost file cleanup failed: {e}")
-
-# NOTE: Render uses ephemeral disks — local files won't exist after a redeploy.
-# We now use the database (`file_data` table) to persist files securely.
 
 # ── Auto-Migrate legacy Supabase .env to Targets ─────────────────────────────
 try:
@@ -182,25 +167,6 @@ app.mount("/previews",   StaticFiles(directory=settings.PREVIEWS_DIR),   name="p
 async def health_check():
     return {"status": "ok", "message": "Media Server is live"}
 
-# ── Keep-Alive Background Task ────────────────────────────────────────────────
-import asyncio
-import httpx
-from contextlib import asynccontextmanager
-
-async def self_ping():
-    """Ping the public Render URL every 14 minutes to prevent free-tier spin down."""
-    url = "https://media-server-api.onrender.com/api/v1/health"
-    while True:
-        await asyncio.sleep(14 * 60) # 14 minutes
-        try:
-            async with httpx.AsyncClient() as client:
-                await client.get(url, timeout=10)
-        except Exception:
-            pass
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(self_ping())
 
 if __name__ == "__main__":
     import uvicorn
