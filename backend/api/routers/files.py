@@ -575,33 +575,6 @@ def serve_file(stored_name: str, kind: str, cache_dir: str, db: Session, current
                     
             if raw_bytes:
                 import io
-                from PIL import Image
-                
-                # If we requested a preview but fetched the original, resize it dynamically
-                needs_resize = False
-                if kind == "preview" and len(raw_bytes) > 2000000: # Over 2MB usually means it's the original
-                    needs_resize = True
-                if kind == "thumbnail":
-                    needs_resize = True
-                    
-                if needs_resize and (db_file.mime_type or "").startswith("image/"):
-                    try:
-                        with Image.open(io.BytesIO(raw_bytes)) as img:
-                            if img.mode in ("RGBA", "P"):
-                                img = img.convert("RGB")
-                                
-                            if kind == "thumbnail":
-                                img.thumbnail((600, 600))
-                            elif kind == "preview":
-                                img.thumbnail((1920, 1080))
-                                
-                            t_io = io.BytesIO()
-                            img.save(t_io, format="JPEG", quality=75)
-                            raw_bytes = t_io.getvalue()
-                            db_file.mime_type = "image/jpeg"
-                    except Exception as e:
-                        print(f"Failed to resize image dynamically: {e}")
-                        
                 return StreamingResponse(io.BytesIO(raw_bytes), media_type=db_file.mime_type or "image/jpeg")
             
     # If no URL exists and it's not on disk/cloud, it's lost
