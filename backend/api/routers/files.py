@@ -363,11 +363,15 @@ def get_storage_usage(target_id: Optional[str] = None, current_user: User = Depe
             })
 
     # Recalculate totals based on live stats breakdown to keep it consistent
+    if target_id == 'null': target_id = None
+    
     if target_id and target_id != "local":
         target_stat = next((b for b in breakdown if b.get("id") == target_id), None)
         if target_stat:
             used = target_stat["used"]
             limit = target_stat["limit"]
+        else:
+            limit = 0
     elif not target_id:
         used = sum(b["used"] for b in breakdown if b["is_configured"])
         limit = sum(b["limit"] for b in breakdown if b["is_configured"])

@@ -212,7 +212,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
     try {
       const apiUrl = '/api/v1';
       let url = `${apiUrl}/files/storage`;
-      if (activeTargetId) url += `?target_id=${activeTargetId}`;
+      if (activeTargetId && activeTargetId !== 'null') url += `?target_id=${activeTargetId}`;
       const response = await fetch(url, { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
