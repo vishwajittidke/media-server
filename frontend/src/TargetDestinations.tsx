@@ -142,9 +142,9 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
         </div>
 
         {/* Content */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-1/3 border-r border-white/10 flex flex-col bg-slate-900/50">
+          <div className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-white/10 flex flex-col bg-slate-900/50 min-h-[200px] md:min-h-0 shrink-0">
             <div className="p-4 flex justify-between items-center border-b border-white/5">
               <h3 className="text-lg font-semibold text-white/90">Saved Targets</h3>
               <button 
@@ -192,9 +192,9 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
           </div>
 
           {/* Main Edit Area */}
-          <div className="w-2/3 bg-slate-800/30 p-8 overflow-y-auto">
+          <div className="w-full md:w-2/3 bg-slate-800/30 p-4 sm:p-8 overflow-y-auto">
             {activeTab === 'list' ? (
-              <div className="h-full flex flex-col items-center justify-center text-white/40">
+              <div className="h-full flex flex-col items-center justify-center text-white/40 py-10 md:py-0">
                 <svg className="w-24 h-24 mb-6 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                 <h3 className="text-xl font-medium text-white/60 mb-2">Select a Target Destination</h3>
                 <p className="text-sm text-center max-w-sm">Choose an existing target from the left or click 'New Target' to configure a new integration.</p>
@@ -217,7 +217,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-white/70 mb-2">Connection Name *</label>
                       <input 
@@ -251,7 +251,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
                     
                     {formData.provider_type === 'AWS_S3' && (
                       <>
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
                             <label className="block text-sm font-medium text-white/70 mb-2">AWS Region</label>
                             <input 
@@ -273,7 +273,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
                             <label className="block text-sm font-medium text-white/70 mb-2">Access Key ID *</label>
                             <input 
@@ -337,7 +337,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
                     
                     {formData.provider_type === 'CLOUDINARY' && (
                       <>
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
                             <label className="block text-sm font-medium text-white/70 mb-2">Cloud Name *</label>
                             <input 
@@ -390,7 +390,7 @@ export function TargetDestinations({ onClose }: TargetDestinationsProps) {
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-white/70 mb-2">OAuth2 Client ID</label>
                             <input 

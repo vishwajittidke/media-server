@@ -918,9 +918,9 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
 
           <div className="flex flex-col lg:flex-row items-center gap-3 lg:gap-4 w-full sm:w-auto">
             {/* Primary Actions */}
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-              <div className="flex items-center premium-btn !p-1 sm:!p-1.5 space-x-1 sm:space-x-1.5 !overflow-visible z-50">
-                <label className="cursor-pointer inline-flex items-center space-x-1 sm:space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors h-full">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <div className="flex items-center premium-btn !p-1 sm:!p-1.5 space-x-1 sm:space-x-1.5 !overflow-visible z-50 w-full sm:w-auto justify-between sm:justify-start">
+                <label className="cursor-pointer inline-flex items-center justify-center space-x-1 sm:space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors h-full flex-1 sm:flex-none">
                   <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
@@ -937,10 +937,10 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
                 
                 <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
                 
-                <div className="relative" ref={providerDropdownRef}>
+                <div className="relative flex-1 sm:flex-none" ref={providerDropdownRef}>
                   <button 
                     onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-                    className="flex items-center justify-between min-w-[130px] bg-transparent hover:bg-white/5 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 px-3 transition-all cursor-pointer outline-none"
+                    className="flex items-center justify-between w-full sm:w-auto min-w-[130px] bg-transparent hover:bg-white/5 text-white/90 text-sm font-medium rounded-xl py-1.5 sm:py-2 px-3 transition-all cursor-pointer outline-none"
                     disabled={uploading}
                   >
                     <span className="flex items-center gap-2 truncate max-w-[150px]">
@@ -1019,7 +1019,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
               
               <button 
                 onClick={() => { setIsSelectMode(!isSelectMode); setSelectedFileIds(new Set()); }}
-                className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap"
+                className="premium-btn text-xs sm:text-sm !px-3 sm:!px-5 !py-1.5 sm:!py-2.5 !bg-blue-500/20 hover:!bg-blue-500/40 text-blue-200 border border-blue-500/30 whitespace-nowrap w-full sm:w-auto text-center justify-center"
               >
                 {isSelectMode ? 'Cancel' : 'Select'}
               </button>
@@ -1206,7 +1206,7 @@ const Gallery: React.FC<GalleryProps> = ({ wsToken, onLogout }) => {
               style={{ 
                 animationDelay: '0.1s',
                 ...(layout === 'masonry' 
-                  ? { columnCount: gridScale } 
+                  ? { columnCount: gridScale, columnWidth: '120px' } 
                   : { gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(100, 400 - (gridScale * 30))}px, 1fr))` }
                 )
               }}
